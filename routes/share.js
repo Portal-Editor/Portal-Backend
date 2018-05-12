@@ -120,7 +120,7 @@ function startServer() {
                             files[data.uri].occupier.push(data.userId);
                             files[data.uri].activeUser.push(data.userId);
                         }
-                        console.log(data.uri + ' added');
+                        console.log(data.uri + ' added\n');
                         logFiles(portals[ws.sessionId].files);
                         break;
                     /*

@@ -14,21 +14,20 @@ const share = new ShareDB();
 // Register new op middleware
 share.use('op', (request, callback) => {
     callback();
-    setTimeout(() => {
-        let ws = request.agent.stream.ws; // ?
-        let cursors = allSessions[ws.sessionId].cursors;
-        if (typeof cursors !== 'undefined') {
-            console.log('Broadcasting ' + ws.clientId + '\'s cursors');
-            for (let path in cursors) {
-                if (cursors.hasOwnProperty(path) &&
-                    JSON.parse(cursors[path]).clientId === ws.clientId) {
-                    console.log(path);
-                    broadcastMsg(cursors[path], ws);
-                }
-            }
-            cursors = {};
-        }
-    }, 0);
+    // setTimeout(() => {
+    //     let ws = request.agent.stream.ws; // ?
+    //     let cursors = allSessions[ws.sessionId].cursors;
+    //     if (typeof cursors !== 'undefined') {
+    //         console.log('Broadcasting ' + ws.clientId + '\'s cursors'); /////////////
+    //         for (let path in cursors) {
+    //             if (cursors.hasOwnProperty(path) && JSON.parse(cursors[path]).clientId === ws.clientId) {
+    //                 console.log(path);
+    //                 broadcastMsg(cursors[path], ws);
+    //             }
+    //         }
+    //         cursors = {};
+    //     }
+    // }, 0);
 });
 
 startServer();

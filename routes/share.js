@@ -197,7 +197,7 @@ function judgeType(ws, msg) {
     else {
         // OT
         console.log(data);
-        stream.push(JSON.parse(msg));
+        stream.push(data);
     }
 }
 

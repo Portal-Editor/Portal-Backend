@@ -3,10 +3,10 @@ let ShareDB = require('sharedb');
 let otText = require('ot-text');
 let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
-//let WebSocketJSONStream = require('websocket-json-stream');
 
 ShareDB.types.register(otText.type);
-allSessions = [];
+
+portals = [];
 
 const share = new ShareDB();
 //const stream = new WebSocketJSONStream(ws);
@@ -14,20 +14,20 @@ const share = new ShareDB();
 // Register new op middleware
 share.use('op', (request, callback) => {
     callback();
-    // setTimeout(() => {
-    //     let ws = request.agent.stream.ws; // ?
-    //     let cursors = allSessions[ws.sessionId].cursors;
-    //     if (typeof cursors !== 'undefined') {
-    //         console.log('Broadcasting ' + ws.clientId + '\'s cursors'); /////////////
-    //         for (let path in cursors) {
-    //             if (cursors.hasOwnProperty(path) && JSON.parse(cursors[path]).clientId === ws.clientId) {
-    //                 console.log(path);
-    //                 broadcastMsg(cursors[path], ws);
-    //             }
-    //         }
-    //         cursors = {};
-    //     }
-    // }, 0);
+    setTimeout(() => {
+        let ws = request.agent.stream.ws; // ?
+        let cursors = portals[ws.sessionId].cursors;
+        if (typeof cursors !== 'undefined') {
+            console.log('Broadcasting ' + ws.clientId + '\'s cursors'); /////////////
+            for (let path in cursors) {
+                if (cursors.hasOwnProperty(path) && JSON.parse(cursors[path]).clientId === ws.clientId) {
+                    console.log(path);
+                    broadcastMsg(cursors[path], ws);
+                }
+            }
+            cursors = {};
+        }
+    }, 0);
 });
 
 startServer();
@@ -70,13 +70,13 @@ function startServer() {
                 if (data.type === 'init') {
                     // create or join a session
                     ws.createOrJoinSession(data);
-                    ws.send(JSON.stringify(allSessions[ws.sessionId].tabs));
+                    ws.send(JSON.stringify(portals[ws.sessionId].tabs));
                 } else {
                     // tab changes: add or remove tab
                     let logTabs = false;
 
                     if (data.type === 'editorClosed') {
-                        let tabs = allSessions[ws.sessionId].tabs;
+                        let tabs = portals[ws.sessionId].tabs;
                         let index = tabs.indexOf(data.path);
                         if (index > -1) {
                             tabs.splice(index, 1);
@@ -85,7 +85,7 @@ function startServer() {
                         }
 
                     } else if (data.type === 'addTab') {
-                        let tabs = allSessions[ws.sessionId].tabs;
+                        let tabs = portals[ws.sessionId].tabs;
                         if (tabs.indexOf(data.uri) !== -1) {
                             return;
                         }
@@ -94,14 +94,14 @@ function startServer() {
                         console.log(data.uri + ' added');
 
                     } else if (data.type === 'cursorMoved') {
-                        let cursors = allSessions[ws.sessionId].cursors;
+                        let cursors = portals[ws.sessionId].cursors;
                         cursors[data.path] = msg;
                         return;
                     }
 
                     if (logTabs) {
                         console.log('current tabs: ');
-                        console.log(allSessions[ws.sessionId].tabs);
+                        console.log(portals[ws.sessionId].tabs);
                         console.log('\n');
                     }
                     // other meta changes: cursor position, text selection
@@ -120,11 +120,11 @@ function startServer() {
             if (code === 1006) {
                 return;
             }
-            let index = allSessions[ws.sessionId].wss.indexOf(ws);
+            let index = portals[ws.sessionId].wss.indexOf(ws);
             if (index > -1) {
-                allSessions[ws.sessionId].wss.splice(index, 1);
+                portals[ws.sessionId].wss.splice(index, 1);
                 console.log('We just lost one connection: ' + ws.clientId + ' from ' + ws.sessionId);
-                console.log('Now ' + ws.sessionId + ' has ' + allSessions[ws.sessionId].wss.length + ' connection(s)');
+                console.log('Now ' + ws.sessionId + ' has ' + portals[ws.sessionId].wss.length + ' connection(s)');
                 console.log('\n');
                 let msg = {
                     a: 'meta',
@@ -147,7 +147,7 @@ function startServer() {
 };
 
 function broadcastMsg(msg, ws) {
-    let sockets = allSessions[ws.sessionId].wss;
+    let sockets = portals[ws.sessionId].wss;
     sockets.forEach((socket) => {
         if (socket.readyState === WebSocket.OPEN && (socket.getId() !== ws.getId())) {
             console.log('Broadcasting msg to ' + socket.clientId + '\n');
@@ -165,14 +165,14 @@ WebSocket.prototype.createOrJoinSession = function (data) {
     let clientId = data.clientId;
     this.sessionId = sessionId;
     this.clientId = clientId;
-    if (typeof allSessions[sessionId] === 'undefined') {
+    if (typeof portals[sessionId] === 'undefined') {
         let session = {};
         session.wss = [];
         session.tabs = [];
         session.cursors = {};
-        allSessions[sessionId] = session;
+        portals[sessionId] = session;
     }
-    allSessions[sessionId].wss.push(this);
+    portals[sessionId].wss.push(this);
     console.log('Session ' + sessionId + ' adds ' + clientId + '\n');
 };
 

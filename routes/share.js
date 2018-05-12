@@ -63,6 +63,13 @@ function startServer() {
         const stream = new WebSocketStream(ws);
 
         ws.on('message', function (msg) { // receive text data
+            if (msg instanceof ArrayBuffer) {
+                console.log("Receive: ArrayBuffer\n");
+                return;
+            } else if (msg instanceof Blob) {
+                console.log("Receive: Blob\n");
+                return;
+            }
             let data = JSON.parse(msg);
 
             if (data.a === 'meta') {

@@ -12,26 +12,6 @@ ShareDB.types.register(otText.type);
 var portals = [];
 
 const share = new ShareDB();
-//const stream = new WebSocketJSONStream(ws);
-
-// Register new op middleware
-share.use('op', (request, callback) => {
-    callback();
-    setTimeout(() => {
-        let ws = request.agent.stream.ws; // ?
-        let cursors = portals[ws.sessionId].cursors;
-        if (typeof cursors !== 'undefined') {
-            console.log('Broadcasting ' + ws.clientId + '\'s cursors'); /////////////
-            for (let path in cursors) {
-                if (cursors.hasOwnProperty(path) && JSON.parse(cursors[path]).clientId === ws.clientId) {
-                    console.log(path);
-                    broadcastMsg(cursors[path], ws);
-                }
-            }
-            cursors = {};
-        }
-    }, 0);
-});
 
 startServer();
 
@@ -79,15 +59,15 @@ function startServer() {
             if (code === 1006) {
                 return;
             }
-            if (portals[ws.sessionId].users[ws.clientId]) {
-                portals[ws.sessionId].users[ws.clientId] = null;
-                console.log('We just lost one connection: ' + ws.clientId + ' from ' + ws.sessionId);
-                console.log('Now ' + ws.sessionId + ' has ' + portals[ws.sessionId].users.length + ' connection(s)');
+            if (portals[ws.portalId].users[ws.userId]) {
+                portals[ws.portalId].users[ws.userId] = null;
+                console.log('We just lost one connection: ' + ws.userId + ' from ' + ws.portalId);
+                console.log('Now ' + ws.portalId + ' has ' + portals[ws.portalId].users.length + ' connection(s)');
                 console.log('\n');
                 let msg = {
                     a: Constant.META,
                     type: Constant.TYPE_CLOSE_SOCKET,
-                    clientId: ws.clientId
+                    clientId: ws.userId
                 };
                 broadcastMsg(JSON.stringify(msg), ws);
             }
@@ -114,56 +94,79 @@ function judgeType(ws, msg) {
     let data = JSON.parse(msg);
     if (data.a === Constant.META) {
         console.log('Received meta data:' + JSON.stringify(data) + '\n');
-        let files = portals[ws.sessionId] ? portals[ws.sessionId].files : null;
+        let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
 
         switch (data.type) {
-            /*
+
+            /* ===============================================================
             *
             *   Needed:
-            *   { clientId, sessionId }
+            *   { clientId, sessionId, name }
             *
-            */
+            =============================================================== */
+
             case Constant.TYPE_INIT:
                 // create or join a session
                 ws.createOrJoinSession(data);
-                ws.send(JSON.stringify(portals[ws.sessionId].files));
+                ws.send(JSON.stringify(portals[ws.portalId].files));
                 return;
-            /*
+
+            /* ===============================================================
             *
             *   Needed:
-            *   { path }
+            *   { path, userId, newPosition: {row, column} }
             *
-            */
+            =============================================================== */
+
             case Constant.TYPE_MOVE_CURSOR:
-                let cursors = portals[ws.sessionId].cursors;
-                cursors[data.path] = msg;
+                let cursor = files[data.path].cursors[data.userId];
+                cursor.row = data.newPosition.row;
+                cursor.column = data.newPosition.column;
+                console.log('Ready to broadcast ' + data.userId + '\'s cursor');
+                for (let user in files[data.path].occupier) {
+                    console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + user);
+                    broadcastMsg(files[data.path].cursors[data.userId], ws);
+                }
                 return;
-            /*
+
+            /* ===============================================================
             *
             *   Needed:
             *   { uri, userId }
             *
-            */
+            =============================================================== */
+
             case Constant.TYPE_OPEN_FILE:
-                if (!files[data.uri]) {
-                    files[data.uri] = {
+                let file = files[data.uri];
+                if (!file) {
+                    file = {
                         uri: data.uri,
-                        grammer: data.grammer,
+                        grammar: data.grammar,
                         occupier: [],
-                        activeUser: []
+                        activeUser: [],
+                        cursors: {}
                     };
                 }
-                files[data.uri].occupier.push(data.userId);
-                files[data.uri].activeUser.push(data.userId);
+
+                file.occupier.push(data.userId);
+                file.activeUser.push(data.userId);
+                file.cursors[data.userId] = {
+                    row: 0,
+                    column: 0,
+                    // TODO: random color
+                    color: ""
+                };
                 console.log(data.uri + ' added\n');
-                logFiles(portals[ws.sessionId].files);
+                logFiles(portals[ws.portalId].files);
                 break;
-            /*
+
+            /* ===============================================================
             *
             *   Needed:
             *   { path, userId }
             *
-            */
+            =============================================================== */
+
             case Constant.TYPE_CLOSE_FILE:
                 // TODO: Refactor
                 let index = files[data.path].activeUser.indexOf(data.userId);
@@ -175,9 +178,9 @@ function judgeType(ws, msg) {
                 if (!files[data.path].occupier.length) {
                     files[data.path] = null;
                     console.log(data.path + ' removed.');
-                    logFiles(portals[ws.sessionId].files);
+                    logFiles(portals[ws.portalId].files);
                 } else {
-                    logFiles(portals[ws.sessionId].files[data.path]);
+                    logFiles(portals[ws.portalId].files[data.path]);
                 }
         }
         // other meta changes: cursor position, text selection
@@ -192,7 +195,7 @@ function judgeType(ws, msg) {
 }
 
 function broadcastMsg(msg, ws) {
-    let sockets = portals[ws.sessionId].users;
+    let sockets = portals[ws.portalId].users;
     Object.keys(sockets).forEach(function (userId) {
         if (sockets[userId].readyState === WebSocket.OPEN && (userId !== ws.getId())) {
             console.log('Broadcasting msg to ' + userId + '\n');
@@ -206,24 +209,23 @@ function broadcastMsg(msg, ws) {
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {
-    let sessionId = data.sessionId;
-    let clientId = data.clientId;
-    this.sessionId = sessionId;
-    this.clientId = clientId;
-    if (typeof portals[sessionId] === 'undefined') {
-        let portal = {
-            id: sessionId,
+    let portalId = data.portalId;
+    let userId = data.userId;
+    this.portalId = portalId;
+    this.userId = userId;
+    if (typeof portals[portalId] === 'undefined') {
+        portals[portalId] = {
+            id: portalId,
             files: {},
-            users: {},
-            cursors: {} // TODO: remove this
+            users: {}
         };
-        portals[sessionId] = portal;
     }
-    portals[sessionId].users[clientId] = {
-        id: clientId,
+    portals[portalId].users[userId] = {
+        id: userId,
+        name: data.name,
         ws: this
     };
-    console.log('Session ' + sessionId + ' adds ' + clientId + '\n');
+    console.log('Session ' + portalId + ' adds ' + userId + '\n');
 };
 
 WebSocket.prototype.getId = function () {

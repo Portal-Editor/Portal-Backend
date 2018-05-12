@@ -18,9 +18,10 @@ share.use('op', (request, callback) => {
         let ws = request.agent.stream.ws; // ?
         let cursors = allSessions[ws.sessionId].cursors;
         if (typeof cursors !== 'undefined') {
-            console.log('Broadcasting ' + ws.clientId + '\'s cursors'); /////////////
+            console.log('Broadcasting ' + ws.clientId + '\'s cursors');
             for (let path in cursors) {
-                if (cursors.hasOwnProperty(path) && JSON.parse(cursors[path]).clientId === ws.clientId) {
+                if (cursors.hasOwnProperty(path) &&
+                    JSON.parse(cursors[path]).clientId === ws.clientId) {
                     console.log(path);
                     broadcastMsg(cursors[path], ws);
                 }
@@ -35,7 +36,7 @@ startServer();
 function startServer() {
     // Create a WebSocket Server
     // and connect any incoming WebSocket connection to ShareDB
-    const webSocketServer = new WebSocket.Server({
+    const wss = new WebSocket.Server({
         port: 9090,
         perMessageDeflate: {
             zlibDeflateOptions: { // See zlib defaults.
@@ -58,11 +59,13 @@ function startServer() {
     }, () => {
         console.log('WebSocket Server Created.');
     });
-    webSocketServer.on('connection', function connect(ws) {
+
+    wss.on('connection', function connect(ws) {
         const stream = new WebSocketStream(ws);
 
-        ws.on('message', function (msg) {
+        ws.on('message', function (msg) { // receive text data
             let data = JSON.parse(msg);
+
             if (data.a === 'meta') {
                 console.log('Received meta data:' + data + '\n');
                 if (data.type === 'init') {
@@ -72,6 +75,7 @@ function startServer() {
                 } else {
                     // tab changes: add or remove tab
                     let logTabs = false;
+
                     if (data.type === 'editorClosed') {
                         let tabs = allSessions[ws.sessionId].tabs;
                         let index = tabs.indexOf(data.path);
@@ -80,6 +84,7 @@ function startServer() {
                             console.log(data.path + ' removed.');
                             logTabs = true;
                         }
+
                     } else if (data.type === 'addTab') {
                         let tabs = allSessions[ws.sessionId].tabs;
                         if (tabs.indexOf(data.uri) !== -1) {
@@ -88,6 +93,7 @@ function startServer() {
                         tabs.push(data.uri);
                         logTabs = true;
                         console.log(data.uri + ' added');
+
                     } else if (data.type === 'cursorMoved') {
                         let cursors = allSessions[ws.sessionId].cursors;
                         cursors[data.path] = msg;
@@ -115,11 +121,11 @@ function startServer() {
             if (code === 1006) {
                 return;
             }
-            let index = allSessions[ws.sessionId].webSocketServer.indexOf(ws);
+            let index = allSessions[ws.sessionId].wss.indexOf(ws);
             if (index > -1) {
-                allSessions[ws.sessionId].webSocketServer.splice(index, 1);
+                allSessions[ws.sessionId].wss.splice(index, 1);
                 console.log('We just lost one connection: ' + ws.clientId + ' from ' + ws.sessionId);
-                console.log('Now ' + ws.sessionId + ' has ' + allSessions[ws.sessionId].webSocketServer.length + ' connection(s)');
+                console.log('Now ' + ws.sessionId + ' has ' + allSessions[ws.sessionId].wss.length + ' connection(s)');
                 console.log('\n');
                 let msg = {
                     a: 'meta',
@@ -135,7 +141,7 @@ function startServer() {
     });
 
     process.on('SIGINT', () => {
-        webSocketServer.close(() => {
+        wss.close(() => {
             process.exit();
         });
     });

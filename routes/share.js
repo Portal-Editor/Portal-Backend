@@ -66,11 +66,19 @@ function startServer() {
         const stream = new WebSocketStream(ws);
 
         ws.on('message', function (msg) { // receive text data
-            let data = JSON.parse(msg);
+            let promise = new Promise(function (resolve, reject) {
+                let data = JSON.parse(msg);
+                resolve(data);
+            });
+            promise.then(function (msg) {
+                console.log("Message received: " + msg);
+            }).catch(function (err) {
+                console.log("Errors occur:" + err);
+            });
 
             if (data.a === Constant.META) {
-                console.log('Received meta data:' + data + '\n');
-                let tabs = portals[ws.sessionId] ? portals[ws.sessionId].files : null;
+                console.log('Received meta data:' + JSON.stringify(data) + '\n');
+                let files = portals[ws.sessionId] ? portals[ws.sessionId].files : null;
 
                 switch (data.type) {
                     case Constant.TYPE_INIT:
@@ -79,21 +87,39 @@ function startServer() {
                         ws.send(JSON.stringify(portals[ws.sessionId].files));
                         return;
                     case Constant.TYPE_CLOSE_FILE:
-                        let index = tabs.indexOf(data.path);
+                        let index = files.indexOf(data.path);
                         if (index > -1) {
-                            tabs.splice(index, 1);
+                            files.splice(index, 1);
                             console.log(data.path + ' removed.');
                             logFiles(portals[ws.sessionId].files);
                         }
                         break;
+                    /*
+                    *
+                    *   Needed:
+                    *   { uri, userId }
+                    *
+                    */
                     case Constant.TYPE_OPEN_FILE:
-                        if (tabs.indexOf(data.uri) !== -1) {
-                            return;
+                        if (files.indexOf(data.uri) === -1) {
+                            files[data.uri] = {
+                                uri: data.uri,
+                                occupier: [],
+                                activeUser: []
+                            };
+                        } else {
+                            files[data.uri].occupier.push(data.userId);
+                            files[data.uri].activeUser.push(data.userId);
                         }
-                        tabs.push(data.uri);
                         console.log(data.uri + ' added');
                         logFiles(portals[ws.sessionId].files);
                         break;
+                    /*
+                    *
+                    *   Needed:
+                    *   { path }
+                    *
+                    */
                     case Constant.TYPE_MOVE_CURSOR:
                         let cursors = portals[ws.sessionId].cursors;
                         cursors[data.path] = msg;
@@ -144,7 +170,7 @@ function startServer() {
 }
 
 function logFiles(files) {
-    console.log('current tabs: ');
+    console.log('current files: ');
     console.log(files);
     console.log('\n');
 }
@@ -177,7 +203,7 @@ WebSocket.prototype.createOrJoinSession = function (data) {
         };
         portals[sessionId] = portal;
     }
-    portals[sessionId].users.push(this);
+    portals[sessionId].users[clientId] = this;
     console.log('Session ' + sessionId + ' adds ' + clientId + '\n');
 };
 

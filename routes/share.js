@@ -70,7 +70,7 @@ function startServer() {
 
             if (data.a === Constant.META) {
                 console.log('Received meta data:' + data + '\n');
-                let tabs = portals[ws.sessionId].files;
+                let tabs = portals[ws.sessionId] ? portals[ws.sessionId].files : null;
 
                 switch (data.type) {
                     case Constant.TYPE_INIT:

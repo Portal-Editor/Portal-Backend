@@ -109,7 +109,7 @@ function startServer() {
                     *
                     */
                     case Constant.TYPE_OPEN_FILE:
-                        if (files.indexOf(data.uri) === -1) {
+                        if (!files[data.uri]) {
                             files[data.uri] = {
                                 uri: data.uri,
                                 grammer: data.grammer,
@@ -154,9 +154,8 @@ function startServer() {
             if (code === 1006) {
                 return;
             }
-            let index = portals[ws.sessionId].users.indexOf(ws);
-            if (index > -1) {
-                portals[ws.sessionId].users.splice(index, 1);
+            if (portals[ws.sessionId].users[ws.clientId]) {
+                portals[ws.sessionId].users[ws.clientId] = null;
                 console.log('We just lost one connection: ' + ws.clientId + ' from ' + ws.sessionId);
                 console.log('Now ' + ws.sessionId + ' has ' + portals[ws.sessionId].users.length + ' connection(s)');
                 console.log('\n');

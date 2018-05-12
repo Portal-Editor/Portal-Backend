@@ -3,10 +3,13 @@ let ShareDB = require('sharedb');
 let otText = require('ot-text');
 let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
+let Constant = require("../public/javascripts/DataConstants");
+
+'use strict';
 
 ShareDB.types.register(otText.type);
 
-portals = [];
+var portals = [];
 
 const share = new ShareDB();
 //const stream = new WebSocketJSONStream(ws);
@@ -65,50 +68,44 @@ function startServer() {
         ws.on('message', function (msg) { // receive text data
             let data = JSON.parse(msg);
 
-            if (data.a === 'meta') {
+            if (data.a === Constant.META) {
                 console.log('Received meta data:' + data + '\n');
-                if (data.type === 'init') {
-                    // create or join a session
-                    ws.createOrJoinSession(data);
-                    ws.send(JSON.stringify(portals[ws.sessionId].tabs));
-                } else {
-                    // tab changes: add or remove tab
-                    let logTabs = false;
+                let tabs = portals[ws.sessionId].files;
 
-                    if (data.type === 'editorClosed') {
-                        let tabs = portals[ws.sessionId].tabs;
+                switch (data.type) {
+                    case Constant.TYPE_INIT:
+                        // create or join a session
+                        ws.createOrJoinSession(data);
+                        ws.send(JSON.stringify(portals[ws.sessionId].files));
+                        return;
+                    case Constant.TYPE_CLOSE_FILE:
                         let index = tabs.indexOf(data.path);
                         if (index > -1) {
                             tabs.splice(index, 1);
                             console.log(data.path + ' removed.');
-                            logTabs = true;
+                            logFiles(portals[ws.sessionId].files);
                         }
-
-                    } else if (data.type === 'addTab') {
-                        let tabs = portals[ws.sessionId].tabs;
+                        break;
+                    case Constant.TYPE_OPEN_FILE:
                         if (tabs.indexOf(data.uri) !== -1) {
                             return;
                         }
                         tabs.push(data.uri);
-                        logTabs = true;
                         console.log(data.uri + ' added');
-
-                    } else if (data.type === 'cursorMoved') {
+                        logFiles(portals[ws.sessionId].files);
+                        break;
+                    case Constant.TYPE_MOVE_CURSOR:
                         let cursors = portals[ws.sessionId].cursors;
                         cursors[data.path] = msg;
                         return;
-                    }
-
-                    if (logTabs) {
-                        console.log('current tabs: ');
-                        console.log(portals[ws.sessionId].tabs);
-                        console.log('\n');
-                    }
-                    // other meta changes: cursor position, text selection
-                    // and open/save/close file
-                    broadcastMsg(msg, ws);
+                    default:
+                        break;
                 }
-            } else {
+                // other meta changes: cursor position, text selection
+                // and open/save/close file
+                broadcastMsg(msg, ws);
+            }
+            else {
                 // OT
                 console.log(data);
                 stream.push(JSON.parse(msg));
@@ -120,15 +117,15 @@ function startServer() {
             if (code === 1006) {
                 return;
             }
-            let index = portals[ws.sessionId].wss.indexOf(ws);
+            let index = portals[ws.sessionId].users.indexOf(ws);
             if (index > -1) {
-                portals[ws.sessionId].wss.splice(index, 1);
+                portals[ws.sessionId].users.splice(index, 1);
                 console.log('We just lost one connection: ' + ws.clientId + ' from ' + ws.sessionId);
-                console.log('Now ' + ws.sessionId + ' has ' + portals[ws.sessionId].wss.length + ' connection(s)');
+                console.log('Now ' + ws.sessionId + ' has ' + portals[ws.sessionId].users.length + ' connection(s)');
                 console.log('\n');
                 let msg = {
-                    a: 'meta',
-                    type: 'socketClose',
+                    a: Constant.META,
+                    type: Constant.TYPE_CLOSE_SOCKET,
                     clientId: ws.clientId
                 };
                 broadcastMsg(JSON.stringify(msg), ws);
@@ -144,10 +141,16 @@ function startServer() {
             process.exit();
         });
     });
-};
+}
+
+function logFiles(files) {
+    console.log('current tabs: ');
+    console.log(files);
+    console.log('\n');
+}
 
 function broadcastMsg(msg, ws) {
-    let sockets = portals[ws.sessionId].wss;
+    let sockets = portals[ws.sessionId].users;
     sockets.forEach((socket) => {
         if (socket.readyState === WebSocket.OPEN && (socket.getId() !== ws.getId())) {
             console.log('Broadcasting msg to ' + socket.clientId + '\n');
@@ -166,13 +169,15 @@ WebSocket.prototype.createOrJoinSession = function (data) {
     this.sessionId = sessionId;
     this.clientId = clientId;
     if (typeof portals[sessionId] === 'undefined') {
-        let session = {};
-        session.wss = [];
-        session.tabs = [];
-        session.cursors = {};
-        portals[sessionId] = session;
+        let portal = {
+            id: sessionId,
+            files: {},
+            users: {},
+            cursors: {} // TODO: remove this
+        };
+        portals[sessionId] = portal;
     }
-    portals[sessionId].wss.push(this);
+    portals[sessionId].users.push(this);
     console.log('Session ' + sessionId + ' adds ' + clientId + '\n');
 };
 

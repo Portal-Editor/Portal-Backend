@@ -66,86 +66,11 @@ function startServer() {
         const stream = new WebSocketStream(ws);
 
         ws.on('message', function (msg) { // receive text data
-            // let promise = new Promise(function (resolve, reject) {
-            let data = JSON.parse(msg);
-            //     resolve(data);
-            // });
-            // promise.then(function (msg) {
-            //     console.log("Message received: " + msg);
-            // }).catch(function (err) {
-            //     console.log("Errors occur:" + err);
-            // });
-
-            if (data.a === Constant.META) {
-                console.log('Received meta data:' + JSON.stringify(data) + '\n');
-                let files = portals[ws.sessionId] ? portals[ws.sessionId].files : null;
-
-                switch (data.type) {
-                    /*
-                    *
-                    *   Needed:
-                    *   { clientId, sessionId }
-                    *
-                    */
-                    case Constant.TYPE_INIT:
-                        // create or join a session
-                        ws.createOrJoinSession(data);
-                        ws.send(JSON.stringify(portals[ws.sessionId].files));
-                        return;
-                    /*
-                    *
-                    *   Needed:
-                    *   { path }
-                    *
-                    */
-                    case Constant.TYPE_MOVE_CURSOR:
-                        let cursors = portals[ws.sessionId].cursors;
-                        cursors[data.path] = msg;
-                        return;
-                    /*
-                    *
-                    *   Needed:
-                    *   { uri, userId }
-                    *
-                    */
-                    case Constant.TYPE_OPEN_FILE:
-                        if (!files[data.uri]) {
-                            files[data.uri] = {
-                                uri: data.uri,
-                                grammer: data.grammer,
-                                occupier: [],
-                                activeUser: []
-                            };
-                        } else {
-                            files[data.uri].occupier.push(data.userId);
-                            files[data.uri].activeUser.push(data.userId);
-                        }
-                        console.log(data.uri + ' added\n');
-                        logFiles(portals[ws.sessionId].files);
-                        break;
-                    /*
-                    *
-                    *   Needed:
-                    *   { path }
-                    *
-                    */
-                    case Constant.TYPE_CLOSE_FILE:
-                        let index = files.indexOf(data.path);
-                        if (index > -1) {
-                            files.splice(index, 1);
-                            console.log(data.path + ' removed.');
-                            logFiles(portals[ws.sessionId].files);
-                        }
-                        break;
-                }
-                // other meta changes: cursor position, text selection
-                // and open/save/close file
-                broadcastMsg(msg, ws);
-            }
-            else {
-                // OT
-                console.log(data);
-                stream.push(JSON.parse(msg));
+            try {
+                console.log("Message received: " + msg);
+                judgeType(ws, msg);
+            } catch (err) {
+                console.log("Errors occur:" + err);
             }
         });
 
@@ -185,15 +110,96 @@ function logFiles(files) {
     console.log('\n');
 }
 
+function judgeType(ws, msg) {
+    let data = JSON.parse(msg);
+    if (data.a === Constant.META) {
+        console.log('Received meta data:' + JSON.stringify(data) + '\n');
+        let files = portals[ws.sessionId] ? portals[ws.sessionId].files : null;
+
+        switch (data.type) {
+            /*
+            *
+            *   Needed:
+            *   { clientId, sessionId }
+            *
+            */
+            case Constant.TYPE_INIT:
+                // create or join a session
+                ws.createOrJoinSession(data);
+                ws.send(JSON.stringify(portals[ws.sessionId].files));
+                return;
+            /*
+            *
+            *   Needed:
+            *   { path }
+            *
+            */
+            case Constant.TYPE_MOVE_CURSOR:
+                let cursors = portals[ws.sessionId].cursors;
+                cursors[data.path] = msg;
+                return;
+            /*
+            *
+            *   Needed:
+            *   { uri, userId }
+            *
+            */
+            case Constant.TYPE_OPEN_FILE:
+                if (!files[data.uri]) {
+                    files[data.uri] = {
+                        uri: data.uri,
+                        grammer: data.grammer,
+                        occupier: [],
+                        activeUser: []
+                    };
+                }
+                files[data.uri].occupier.push(data.userId);
+                files[data.uri].activeUser.push(data.userId);
+                console.log(data.uri + ' added\n');
+                logFiles(portals[ws.sessionId].files);
+                break;
+            /*
+            *
+            *   Needed:
+            *   { path, userId }
+            *
+            */
+            case Constant.TYPE_CLOSE_FILE:
+                // TODO: Refactor
+                let index = files[data.path].activeUser.indexOf(data.userId);
+                if (index !== -1) {
+                    files[data.path].activeUser.splice(index, 1);
+                }
+                files[data.path].occupier.splice(files[data.path].occupier.indexOf(data.userId), 1);
+
+                if (!files[data.path].occupier.length) {
+                    files[data.path] = null;
+                    console.log(data.path + ' removed.');
+                    logFiles(portals[ws.sessionId].files);
+                } else {
+                    logFiles(portals[ws.sessionId].files[data.path]);
+                }
+        }
+        // other meta changes: cursor position, text selection
+        // and open/save/close file
+        broadcastMsg(msg, ws);
+    }
+    else {
+        // OT
+        console.log(data);
+        stream.push(JSON.parse(msg));
+    }
+}
+
 function broadcastMsg(msg, ws) {
     let sockets = portals[ws.sessionId].users;
-    sockets.forEach((socket) => {
-        if (socket.readyState === WebSocket.OPEN && (socket.getId() !== ws.getId())) {
-            console.log('Broadcasting msg to ' + socket.clientId + '\n');
+    Object.keys(sockets).forEach(function (userId) {
+        if (sockets[userId].readyState === WebSocket.OPEN && (userId !== ws.getId())) {
+            console.log('Broadcasting msg to ' + userId + '\n');
             console.log(msg);
             console.log('\n');
             setTimeout(() => {
-                socket.send(msg);
+                sockets[userId].ws.send(msg);
             }, 0);
         }
     });
@@ -213,7 +219,10 @@ WebSocket.prototype.createOrJoinSession = function (data) {
         };
         portals[sessionId] = portal;
     }
-    portals[sessionId].users[clientId] = this;
+    portals[sessionId].users[clientId] = {
+        id: clientId,
+        ws: this
+    };
     console.log('Session ' + sessionId + ' adds ' + clientId + '\n');
 };
 

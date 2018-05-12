@@ -91,6 +91,13 @@ function logFiles(files) {
 }
 
 function judgeType(ws, msg) {
+    if (msg instanceof ArrayBuffer) {
+        console.log("Receive: ArrayBuffer\n");
+        return;
+    } else if (msg instanceof Blob) {
+        console.log("Receive: Blob\n");
+        return;
+    }
     let data = JSON.parse(msg);
     if (data.a === Constant.META) {
         console.log('Received meta data:' + JSON.stringify(data) + '\n');

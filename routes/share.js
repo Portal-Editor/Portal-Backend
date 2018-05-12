@@ -66,9 +66,9 @@ function startServer() {
             if (msg instanceof ArrayBuffer) {
                 console.log("Receive: ArrayBuffer\n");
                 return;
-            } else if (msg instanceof Blob) {
-                console.log("Receive: Blob\n");
-                return;
+            // } else if (msg instanceof Blob) {
+            //     console.log("Receive: Blob\n");
+            //     return;
             }
             let data = JSON.parse(msg);
 

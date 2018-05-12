@@ -66,34 +66,42 @@ function startServer() {
         const stream = new WebSocketStream(ws);
 
         ws.on('message', function (msg) { // receive text data
-            let promise = new Promise(function (resolve, reject) {
-                let data = JSON.parse(msg);
-                resolve(data);
-            });
-            promise.then(function (msg) {
-                console.log("Message received: " + msg);
-            }).catch(function (err) {
-                console.log("Errors occur:" + err);
-            });
+            // let promise = new Promise(function (resolve, reject) {
+            let data = JSON.parse(msg);
+            //     resolve(data);
+            // });
+            // promise.then(function (msg) {
+            //     console.log("Message received: " + msg);
+            // }).catch(function (err) {
+            //     console.log("Errors occur:" + err);
+            // });
 
             if (data.a === Constant.META) {
                 console.log('Received meta data:' + JSON.stringify(data) + '\n');
                 let files = portals[ws.sessionId] ? portals[ws.sessionId].files : null;
 
                 switch (data.type) {
+                    /*
+                    *
+                    *   Needed:
+                    *   { clientId, sessionId }
+                    *
+                    */
                     case Constant.TYPE_INIT:
                         // create or join a session
                         ws.createOrJoinSession(data);
                         ws.send(JSON.stringify(portals[ws.sessionId].files));
                         return;
-                    case Constant.TYPE_CLOSE_FILE:
-                        let index = files.indexOf(data.path);
-                        if (index > -1) {
-                            files.splice(index, 1);
-                            console.log(data.path + ' removed.');
-                            logFiles(portals[ws.sessionId].files);
-                        }
-                        break;
+                    /*
+                    *
+                    *   Needed:
+                    *   { path }
+                    *
+                    */
+                    case Constant.TYPE_MOVE_CURSOR:
+                        let cursors = portals[ws.sessionId].cursors;
+                        cursors[data.path] = msg;
+                        return;
                     /*
                     *
                     *   Needed:
@@ -104,6 +112,7 @@ function startServer() {
                         if (files.indexOf(data.uri) === -1) {
                             files[data.uri] = {
                                 uri: data.uri,
+                                grammer: data.grammer,
                                 occupier: [],
                                 activeUser: []
                             };
@@ -120,11 +129,13 @@ function startServer() {
                     *   { path }
                     *
                     */
-                    case Constant.TYPE_MOVE_CURSOR:
-                        let cursors = portals[ws.sessionId].cursors;
-                        cursors[data.path] = msg;
-                        return;
-                    default:
+                    case Constant.TYPE_CLOSE_FILE:
+                        let index = files.indexOf(data.path);
+                        if (index > -1) {
+                            files.splice(index, 1);
+                            console.log(data.path + ' removed.');
+                            logFiles(portals[ws.sessionId].files);
+                        }
                         break;
                 }
                 // other meta changes: cursor position, text selection

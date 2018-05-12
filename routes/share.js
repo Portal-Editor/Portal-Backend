@@ -66,7 +66,7 @@ function startServer() {
             let data = JSON.parse(msg);
 
             if (data.a === 'meta') {
-                console.log('Received meta data:' + data + '\n');
+                console.log('Received meta data:' + JSON.stringify(data) + '\n');
                 if (data.type === 'init') {
                     // create or join a session
                     ws.createOrJoinSession(data);

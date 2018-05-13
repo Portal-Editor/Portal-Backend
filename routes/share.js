@@ -42,7 +42,7 @@ function startServer() {
         console.log('WebSocket Server Created.');
     });
 
-    wss.on('connection', function connect(ws) {
+    wss.on('connection', function (ws) {
         const stream = new WebSocketStream(ws);
 
         ws.on('message', function (msg) { // receive text data
@@ -91,21 +91,18 @@ function logFiles(files) {
 }
 
 function judgeType(ws, msg) {
-    if (msg instanceof ArrayBuffer) {
-        console.log("Receive: ArrayBuffer\n");
-        return;
-    } else if (msg instanceof Blob) {
-        console.log("Receive: Blob\n");
-        return;
-    }
     let data = JSON.parse(msg);
     if (data.a === Constant.META) {
         console.log('Received meta data:' + JSON.stringify(data) + '\n');
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
+        let file = data.path ? files[data.path] : null;
 
         switch (data.type) {
 
             /* ===============================================================
+            *
+            *   Init
+            *   Dealing when someone's creating or joining a portal project
             *
             *   Needed:
             *   { clientId, sessionId, name }
@@ -120,34 +117,75 @@ function judgeType(ws, msg) {
 
             /* ===============================================================
             *
+            *   Move Cursor
+            *   - dealing after the user moving cursor -
+            *
             *   Needed:
             *   { path, userId, newPosition: {row, column} }
             *
             =============================================================== */
 
             case Constant.TYPE_MOVE_CURSOR:
-                let cursor = files[data.path].cursors[data.userId];
+                let cursor = file.cursors[data.userId];
                 cursor.row = data.newPosition.row;
                 cursor.column = data.newPosition.column;
                 console.log('Ready to broadcast ' + data.userId + '\'s cursor');
-                for (let user in files[data.path].occupier) {
+                for (let user in file.occupier) {
                     console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + user);
-                    broadcastMsg(files[data.path].cursors[data.userId], ws);
+                    broadcastMsgToSpecificClient(file.cursors[data.userId], ws, data.userId);
                 }
                 return;
 
             /* ===============================================================
             *
+            *   Change Active Status
+            *   - change status to record if user is focusing on the file -
+            *
             *   Needed:
-            *   { uri, userId }
+            *   { path, userId, isActiveUser }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_CHANGE_ACTIVE_STATUS:
+                data.isActiveUser ?
+                    file.activeUser.push(data.userId) :
+                    file.activeUser.splice(file.activeUser.indexOf(data.userId), 1);
+                    console.log('Occupier' + data.userId + ' has changed status to ' + data.isActiveUser ?
+                        "active" : "inactive" + " of " + path);
+                break;
+
+            /* ===============================================================
+            *
+            *   Change Grammar
+            *   - change grammar of specific file -
+            *
+            *   Needed:
+            *   { path, grammar, userId }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_CHANGE_GRAMMAR:
+                if (file.grammar !== data.grammar) {
+                    file.grammar = data.grammar;
+                    console.log('User' + data.userId + ' has changed grammar to ' + data.grammar);
+                }
+                break;
+
+
+            /* ===============================================================
+            *
+            *   Open file
+            *   - record that the user is opening a file -
+            *
+            *   Needed:
+            *   { path, userId }
             *
             =============================================================== */
 
             case Constant.TYPE_OPEN_FILE:
-                let file = files[data.uri];
-                if (!file) {
+                if (!file || file.length === 0) {
                     file = {
-                        uri: data.uri,
+                        path: data.path,
                         grammar: data.grammar,
                         occupier: [],
                         activeUser: [],
@@ -163,11 +201,14 @@ function judgeType(ws, msg) {
                     // TODO: random color
                     color: ""
                 };
-                console.log(data.uri + ' added\n');
+                console.log(data.path + ' added\n');
                 logFiles(portals[ws.portalId].files);
                 break;
 
             /* ===============================================================
+            *
+            *   Close file
+            *   - process after the user closing the file -
             *
             *   Needed:
             *   { path, userId }
@@ -176,18 +217,17 @@ function judgeType(ws, msg) {
 
             case Constant.TYPE_CLOSE_FILE:
                 // TODO: Refactor
-                let index = files[data.path].activeUser.indexOf(data.userId);
+                let index = file.activeUser.indexOf(data.userId);
                 if (index !== -1) {
-                    files[data.path].activeUser.splice(index, 1);
+                    file.activeUser.splice(index, 1);
                 }
-                files[data.path].occupier.splice(files[data.path].occupier.indexOf(data.userId), 1);
-
-                if (!files[data.path].occupier.length) {
-                    files[data.path] = null;
+                file.occupier.splice(file.occupier.indexOf(data.userId), 1);
+                if (!file.occupier.length) {
+                    file = null;
                     console.log(data.path + ' removed.');
                     logFiles(portals[ws.portalId].files);
                 } else {
-                    logFiles(portals[ws.portalId].files[data.path]);
+                    logFiles(file);
                 }
         }
         // other meta changes: cursor position, text selection
@@ -202,17 +242,19 @@ function judgeType(ws, msg) {
 }
 
 function broadcastMsg(msg, ws) {
+    Object.keys(portals[ws.portalId].users).forEach((userId) => broadcastMsgToSpecificClient(msg, ws, userId));
+}
+
+function broadcastMsgToSpecificClient(msg, ws, userId) {
     let sockets = portals[ws.portalId].users;
-    Object.keys(sockets).forEach(function (userId) {
-        if (sockets[userId].readyState === WebSocket.OPEN && (userId !== ws.getId())) {
-            console.log('Broadcasting msg to ' + userId + '\n');
-            console.log(msg);
-            console.log('\n');
-            setTimeout(() => {
-                sockets[userId].ws.send(msg);
-            }, 0);
-        }
-    });
+    if (sockets[userId].readyState === WebSocket.OPEN && (userId !== ws.getId())) {
+        console.log('Broadcasting msg to ' + userId + '\n');
+        console.log(msg);
+        console.log('\n');
+        setTimeout(() => {
+            sockets[userId].ws.send(msg);
+        }, 0);
+    }
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {

@@ -94,6 +94,7 @@ function judgeType(ws, msg) {
     let data = JSON.parse(msg);
     if (data.a === Constant.META) {
         console.log('Received meta data:' + JSON.stringify(data) + '\n');
+        let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
         let file = data.path ? files[data.path] : null;
 
@@ -130,28 +131,27 @@ function judgeType(ws, msg) {
                 cursor.row = data.newPosition.row;
                 cursor.column = data.newPosition.column;
                 console.log('Ready to broadcast ' + data.userId + '\'s cursor');
-                for (let user in file.occupier) {
-                    console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + user);
-                    broadcastMsgToSpecificClient(file.cursors[data.userId], ws, data.userId);
-                }
+                file.occupier.forEach((userId) => {
+                    if (userId !== data.userId) {
+                        console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + userId);
+                        broadcastMsgToSpecificClient(file.cursors[data.userId], ws, data.userId);
+                    }
+                });
                 return;
 
             /* ===============================================================
             *
-            *   Change Active Status
+            *   Activate
             *   - change status to record if user is focusing on the file -
             *
             *   Needed:
-            *   { path, userId, isActiveUser }
+            *   { path, userId }
             *
             =============================================================== */
 
-            case Constant.TYPE_CHANGE_ACTIVE_STATUS:
-                data.isActiveUser ?
-                    file.activeUser.push(data.userId) :
-                    file.activeUser.splice(file.activeUser.indexOf(data.userId), 1);
-                    console.log('Occupier' + data.userId + ' has changed status to ' + data.isActiveUser ?
-                        "active" : "inactive" + " of " + path);
+            case Constant.TYPE_ACTIVATE:
+                changeActivationStatus(ws, users[userId].focusOn, data.userId, false);
+                changeActivationStatus(ws, data.path, data.userId, true);
                 break;
 
             /* ===============================================================
@@ -167,7 +167,7 @@ function judgeType(ws, msg) {
             case Constant.TYPE_CHANGE_GRAMMAR:
                 if (file.grammar !== data.grammar) {
                     file.grammar = data.grammar;
-                    console.log('User' + data.userId + ' has changed grammar to ' + data.grammar);
+                    console.log('User ' + data.userId + ' has changed grammar to ' + data.grammar);
                 }
                 break;
 
@@ -183,8 +183,15 @@ function judgeType(ws, msg) {
             =============================================================== */
 
             case Constant.TYPE_OPEN_FILE:
-                if (!file || file.length === 0) {
-                    file = {
+                let focus = portals[ws.portalId].users[data.userId].focusOn;
+                if (focus) {
+                    let i = portals[ws.portalId].files[focus].activeUser.indexOf(data.userId);
+                    portals[ws.portalId].files[focus].activeUser.splice(i, 1);
+                }
+                portals[ws.portalId].users[data.userId].focusOn = data.path;
+
+                if (!files[data.path]) {
+                    files[data.path] = {
                         path: data.path,
                         grammar: data.grammar,
                         occupier: [],
@@ -193,16 +200,16 @@ function judgeType(ws, msg) {
                     };
                 }
 
-                file.occupier.push(data.userId);
-                file.activeUser.push(data.userId);
-                file.cursors[data.userId] = {
+                files[data.path].occupier.push(data.userId);
+                files[data.path].activeUser.push(data.userId);
+                files[data.path].cursors[data.userId] = {
                     row: 0,
                     column: 0,
                     // TODO: random color
                     color: ""
                 };
                 console.log(data.path + ' added\n');
-                logFiles(portals[ws.portalId].files);
+                logFiles(files);
                 break;
 
             /* ===============================================================
@@ -211,24 +218,31 @@ function judgeType(ws, msg) {
             *   - process after the user closing the file -
             *
             *   Needed:
-            *   { path, userId }
+            *   { path, userId, newPath, newPosition: {row, column} }
             *
             =============================================================== */
 
             case Constant.TYPE_CLOSE_FILE:
+                if (!file.path) {
+                    console.log(data.path + ' is not an allowed path.');
+                    return;
+                }
+
                 // TODO: Refactor
                 let index = file.activeUser.indexOf(data.userId);
                 if (index !== -1) {
                     file.activeUser.splice(index, 1);
                 }
                 file.occupier.splice(file.occupier.indexOf(data.userId), 1);
+
+                if (data.newPath && data.newPosition.row && data.newPosition.column) {
+                    changeActivationStatus(ws, data.newPath, data.userId, true);
+                }
                 if (!file.occupier.length) {
                     file = null;
                     console.log(data.path + ' removed.');
-                    logFiles(portals[ws.portalId].files);
-                } else {
-                    logFiles(file);
                 }
+                logFiles(files);
         }
         // other meta changes: cursor position, text selection
         // and open/save/close file
@@ -255,6 +269,23 @@ function broadcastMsgToSpecificClient(msg, ws, userId) {
             sockets[userId].ws.send(msg);
         }, 0);
     }
+}
+
+function changeActivationStatus(ws, path, userId, isActive) {
+    if (isActive) {
+        if (portals[ws.portalId].files[path].activeUser.includes(userId)) {
+            portals[ws.portalId].files[path].activeUser.push(userId);
+            portals[ws.portalId].users[userId].focusOn = path;
+        } else {
+            console.log("User " + userId + " is not active on file " + path + ".");
+        }
+    } else {
+        portals[ws.portalId].files[path].activeUser.splice(portals[ws.portalId].files[path].activeUser.indexOf(userId), 1);
+        portals[ws.portalId].users[userId].focusOn = null;
+    }
+    // file.activeUser.splice(file.activeUser.indexOf(userId), 1);
+    console.log('Occupier' + userId + ' has changed status to ' + isActive ?
+        "active" : "inactive" + " of " + path);
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {

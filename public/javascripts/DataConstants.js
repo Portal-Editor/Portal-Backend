@@ -6,7 +6,8 @@ let Constants = {
     TYPE_MOVE_CURSOR: "moveCursor",
     TYPE_CHANGE_GRAMMAR: "changeGrammar",
     TYPE_CLOSE_SOCKET: "closeSocket",
-    TYPE_ACTIVATE: "activate"
+    TYPE_ACTIVE_STATUS: "changeActiveStatus",
+    TYPE_SAVE_FILE: "saveFile"
 };
 
 module.exports = Constants;

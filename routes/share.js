@@ -4,6 +4,7 @@ let otText = require('ot-text');
 let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
 let Constant = require("../public/javascripts/DataConstants");
+let fs = require("fs");
 
 'use strict';
 
@@ -122,19 +123,19 @@ function judgeType(ws, msg) {
             *   - dealing after the user moving cursor -
             *
             *   Needed:
-            *   { path, userId, newPosition: {row, column} }
+            *   { path, newPosition: {row, column} }
             *
             =============================================================== */
 
             case Constant.TYPE_MOVE_CURSOR:
-                let cursor = file.cursors[data.userId];
+                let cursor = file.cursors[ws.userId];
                 cursor.row = data.newPosition.row;
                 cursor.column = data.newPosition.column;
-                console.log('Ready to broadcast ' + data.userId + '\'s cursor');
+                console.log('Ready to broadcast ' + ws.userId + '\'s cursor');
                 file.occupier.forEach((userId) => {
-                    if (userId !== data.userId) {
+                    if (userId !== ws.userId) {
                         console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + userId);
-                        broadcastMsgToSpecificClient(file.cursors[data.userId], ws, data.userId);
+                        broadcastMsgToSpecificClient(file.cursors[ws.userId], ws, ws.userId);
                     }
                 });
                 return;
@@ -145,13 +146,13 @@ function judgeType(ws, msg) {
             *   - change status to record if user is focusing on the file -
             *
             *   Needed:
-            *   { path, userId }
+            *   { path }
             *
             =============================================================== */
 
-            case Constant.TYPE_ACTIVATE:
-                changeActivationStatus(ws, users[userId].focusOn, data.userId, false);
-                changeActivationStatus(ws, data.path, data.userId, true);
+            case Constant.TYPE_ACTIVE_STATUS:
+                changeActivationStatus(ws, users[userId].focusOn, false);
+                changeActivationStatus(ws, data.path, true);
                 break;
 
             /* ===============================================================
@@ -160,14 +161,14 @@ function judgeType(ws, msg) {
             *   - change grammar of specific file -
             *
             *   Needed:
-            *   { path, grammar, userId }
+            *   { path, grammar }
             *
             =============================================================== */
 
             case Constant.TYPE_CHANGE_GRAMMAR:
                 if (file.grammar !== data.grammar) {
                     file.grammar = data.grammar;
-                    console.log('User ' + data.userId + ' has changed grammar to ' + data.grammar);
+                    console.log('User ' + ws.userId + ' has changed grammar to ' + data.grammar);
                 }
                 break;
 
@@ -178,17 +179,17 @@ function judgeType(ws, msg) {
             *   - record that the user is opening a file -
             *
             *   Needed:
-            *   { path, userId }
+            *   { path }
             *
             =============================================================== */
 
             case Constant.TYPE_OPEN_FILE:
-                let focus = portals[ws.portalId].users[data.userId].focusOn;
+                let focus = portals[ws.portalId].users[ws.userId].focusOn;
                 if (focus) {
-                    let i = portals[ws.portalId].files[focus].activeUser.indexOf(data.userId);
+                    let i = portals[ws.portalId].files[focus].activeUser.indexOf(ws.userId);
                     portals[ws.portalId].files[focus].activeUser.splice(i, 1);
                 }
-                portals[ws.portalId].users[data.userId].focusOn = data.path;
+                portals[ws.portalId].users[ws.userId].focusOn = data.path;
 
                 if (!files[data.path]) {
                     files[data.path] = {
@@ -200,9 +201,10 @@ function judgeType(ws, msg) {
                     };
                 }
 
-                files[data.path].occupier.push(data.userId);
-                files[data.path].activeUser.push(data.userId);
-                files[data.path].cursors[data.userId] = {
+                files[data.path].occupier.push(ws.userId);
+                files[data.path].activeUser.push(ws.userId);
+
+                files[data.path].cursors[ws.userId] = {
                     row: 0,
                     column: 0,
                     // TODO: random color
@@ -218,7 +220,7 @@ function judgeType(ws, msg) {
             *   - process after the user closing the file -
             *
             *   Needed:
-            *   { path, userId, newPath, newPosition: {row, column} }
+            *   { path, newPath, newPosition: {row, column} }
             *
             =============================================================== */
 
@@ -229,15 +231,13 @@ function judgeType(ws, msg) {
                 }
 
                 // TODO: Refactor
-                let index = file.activeUser.indexOf(data.userId);
+                let index = file.activeUser.indexOf(ws.userId);
                 if (index !== -1) {
                     file.activeUser.splice(index, 1);
                 }
-                file.occupier.splice(file.occupier.indexOf(data.userId), 1);
+                file.occupier.splice(file.occupier.indexOf(ws.userId), 1);
+                file.cursors[ws.userId] = null;
 
-                if (data.newPath && data.newPosition.row && data.newPosition.column) {
-                    changeActivationStatus(ws, data.newPath, data.userId, true);
-                }
                 if (!file.occupier.length) {
                     file = null;
                     console.log(data.path + ' removed.');
@@ -246,9 +246,13 @@ function judgeType(ws, msg) {
         }
         // other meta changes: cursor position, text selection
         // and open/save/close file
-        broadcastMsg(msg, ws);
-    }
-    else {
+        broadcastMsg(JSON.stringify(data), ws);
+    } else if (data.type === 'Buffer') {
+        fs.appendFile("/root/kevinz/portals/" + ws.portalId + ".zip", data.data, (err) => {
+            if (err) throw err;
+            console.log('The "data to append" was appended to file!');
+        });
+    } else {
         // OT
         console.log(data);
         stream.push(data);
@@ -260,28 +264,27 @@ function broadcastMsg(msg, ws) {
 }
 
 function broadcastMsgToSpecificClient(msg, ws, userId) {
+    let data = JSON.parse(msg);
     let sockets = portals[ws.portalId].users;
     if (sockets[userId].readyState === WebSocket.OPEN && (userId !== ws.getId())) {
         console.log('Broadcasting msg to ' + userId + '\n');
-        console.log(msg);
-        console.log('\n');
-        setTimeout(() => {
-            sockets[userId].ws.send(msg);
-        }, 0);
+        console.log(msg + '\n');
+        setTimeout(() => sockets[userId].ws.send(JSON.stringify(data)), 0);
     }
 }
 
-function changeActivationStatus(ws, path, userId, isActive) {
+function changeActivationStatus(ws, path, isActive) {
     if (isActive) {
-        if (portals[ws.portalId].files[path].activeUser.includes(userId)) {
-            portals[ws.portalId].files[path].activeUser.push(userId);
-            portals[ws.portalId].users[userId].focusOn = path;
+        if (portals[ws.portalId].files[path].activeUser.includes(ws.userId)) {
+            portals[ws.portalId].files[path].activeUser.push(ws.userId);
+            portals[ws.portalId].users[ws.userId].focusOn = path;
         } else {
-            console.log("User " + userId + " is not active on file " + path + ".");
+            console.log("User " + ws.userId + " is not active on file " + path + ".");
+            return;
         }
     } else {
-        portals[ws.portalId].files[path].activeUser.splice(portals[ws.portalId].files[path].activeUser.indexOf(userId), 1);
-        portals[ws.portalId].users[userId].focusOn = null;
+        portals[ws.portalId].files[path].activeUser.splice(portals[ws.portalId].files[path].activeUser.indexOf(ws.userId), 1);
+        portals[ws.portalId].users[ws.userId].focusOn = null;
     }
     // file.activeUser.splice(file.activeUser.indexOf(userId), 1);
     console.log('Occupier' + userId + ' has changed status to ' + isActive ?

@@ -49,7 +49,6 @@ function startServer() {
 
         ws.on('message', function (msg) { // receive text data
             try {
-                console.log("Message received: " + msg);
                 judgeType(ws, msg, stream);
             } catch (err) {
                 console.log("Errors occur:" + err);
@@ -256,6 +255,7 @@ function judgeType(ws, msg, stream) {
         //     if (err) throw err;
         //     console.log('The "data to append" was appended to file!');
         // });
+        console.log("File length: " + data.data.length);
         yauzl.fromBuffer(data.data, {
             lazyEntries: false,
             decodeStrings: true,
@@ -283,7 +283,7 @@ function judgeType(ws, msg, stream) {
         });
     } else {
         // OT
-        console.log(data);
+        console.log(JSON.stringify(data));
         stream.push(data);
     }
 }

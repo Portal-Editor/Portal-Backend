@@ -16,6 +16,7 @@
     "ot-text": "^1.0.1",
     "sharedb": "1.0.0-beta.7",
     "websocket-push-stream": "^0.1.0",
-    "ws": "^2.2.2"
+    "ws": "^2.2.2",
+    "yauzl": "2.9.1"
   }
 }

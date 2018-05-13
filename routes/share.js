@@ -4,7 +4,8 @@ let otText = require('ot-text');
 let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
 let Constant = require("../public/javascripts/DataConstants");
-let fs = require("fs");
+// let fs = require("fs");
+let yauzl = require("yauzl");
 
 'use strict';
 
@@ -243,14 +244,42 @@ function judgeType(ws, msg) {
                     console.log(data.path + ' removed.');
                 }
                 logFiles(files);
+                break;
+            case Constant.TYPE_SAVE_FILE:
+                break;
         }
         // other meta changes: cursor position, text selection
         // and open/save/close file
         broadcastMsg(JSON.stringify(data), ws);
     } else if (data.type === 'Buffer') {
-        fs.appendFile("/root/kevinz/portals/" + ws.portalId + ".zip", data.data, (err) => {
+        // fs.appendFile("/root/kevinz/portals/" + ws.portalId + ".zip", data.data, (err) => {
+        //     if (err) throw err;
+        //     console.log('The "data to append" was appended to file!');
+        // });
+        yauzl.fromBuffer(data.data, {
+            lazyEntries: false,
+            decodeStrings: true,
+            validateEntrySizes: true
+        }, (err, zipfile) => {
             if (err) throw err;
-            console.log('The "data to append" was appended to file!');
+            zipfile.readEntry();
+            zipfile.on("entry", function (entry) {
+                if (/\/$/.test(entry.fileName)) {
+                    // Directory file names end with '/'.
+                    // Note that entires for directories themselves are optional.
+                    // An entry's fileName implicitly requires its parent directories to exist.
+                    zipfile.readEntry();
+                } else {
+                    // file entry
+                    zipfile.openReadStream(entry, function (err, readStream) {
+                        if (err) throw err;
+                        readStream.on("end", function () {
+                            zipfile.readEntry();
+                        });
+                        readStream.pipe("/root/kevinz/portals/");
+                    });
+                }
+            });
         });
     } else {
         // OT

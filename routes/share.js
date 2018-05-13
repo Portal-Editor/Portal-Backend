@@ -50,7 +50,7 @@ function startServer() {
         ws.on('message', function (msg) { // receive text data
             try {
                 console.log("Message received: " + msg);
-                judgeType(ws, msg);
+                judgeType(ws, msg, stream);
             } catch (err) {
                 console.log("Errors occur:" + err);
             }
@@ -92,7 +92,7 @@ function logFiles(files) {
     console.log('\n');
 }
 
-function judgeType(ws, msg) {
+function judgeType(ws, msg, stream) {
     let data = JSON.parse(msg);
     if (data.a === Constant.META) {
         console.log('Received meta data:' + JSON.stringify(data) + '\n');

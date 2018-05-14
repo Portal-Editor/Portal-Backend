@@ -309,7 +309,7 @@ function broadcastMsg(msg, ws, isToAll) {
 
 function broadcastMsgToSpecificClient(msg, socket) {
     if (socket.readyState === WebSocket.OPEN) {
-        console.log('Broadcasting msg to ' + userId + '\n');
+        console.log('Broadcasting msg to ' + socket.userId + '\n');
         console.log(msg + '\n');
         setTimeout(() => socket.send(msg), 0);
     }

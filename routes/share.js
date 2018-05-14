@@ -68,7 +68,7 @@ function startServer() {
                 let msg = {
                     a: Constant.META,
                     type: Constant.TYPE_CLOSE_SOCKET,
-                    clientId: ws.userId
+                    userId: ws.userId
                 };
                 broadcastMsg(JSON.stringify(msg), ws);
             }
@@ -108,14 +108,20 @@ function judgeType(ws, msg, stream) {
             *   Dealing when someone's creating or joining a portal project
             *
             *   Needed:
-            *   { clientId, sessionId, name }
+            *   { userId, portalId, name }
             *
             =============================================================== */
 
             case Constant.TYPE_INIT:
                 // create or join a session
                 ws.createOrJoinSession(data);
-                ws.send(JSON.stringify(portals[ws.portalId].files));
+                ws.send(JSON.stringify({
+                    a: Constant.META,
+                    type: Constant.TYPE_INIT,
+                    files: portals[ws.portalId].files,
+                    users: portals[ws.portalId].users,
+                    pack: "this is zip package"
+                }));
                 return;
 
             /* ===============================================================
@@ -124,15 +130,17 @@ function judgeType(ws, msg, stream) {
             *   - dealing after the user moving cursor -
             *
             *   Needed:
-            *   { path, newPosition: {row, column} }
+            *   { path, cursor: {row, column} }
             *
             =============================================================== */
 
             case Constant.TYPE_MOVE_CURSOR:
                 let cursor = file.cursors[ws.userId];
-                cursor.row = data.newPosition.row;
-                cursor.column = data.newPosition.column;
+                cursor.row = data.cursor.row;
+                cursor.column = data.cursor.column;
                 console.log('Ready to broadcast ' + ws.userId + '\'s cursor');
+
+                data.userId = ws.userId;
                 file.occupier.forEach((userId) => {
                     if (userId !== ws.userId) {
                         console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + userId);
@@ -143,7 +151,7 @@ function judgeType(ws, msg, stream) {
 
             /* ===============================================================
             *
-            *   Activate
+            *   Change Active Status
             *   - change status to record if user is focusing on the file -
             *
             *   Needed:
@@ -151,7 +159,7 @@ function judgeType(ws, msg, stream) {
             *
             =============================================================== */
 
-            case Constant.TYPE_ACTIVE_STATUS:
+            case Constant.TYPE_CHANGE_ACTIVE_STATUS:
                 changeActivationStatus(ws, users[userId].focusOn, false);
                 changeActivationStatus(ws, data.path, true);
                 break;
@@ -209,7 +217,7 @@ function judgeType(ws, msg, stream) {
                     row: 0,
                     column: 0,
                     // TODO: random color
-                    color: ""
+                    color: users[ws.userId].color
                 };
                 console.log(data.path + ' added\n');
                 logFiles(files);
@@ -221,7 +229,7 @@ function judgeType(ws, msg, stream) {
             *   - process after the user closing the file -
             *
             *   Needed:
-            *   { path, newPath, newPosition: {row, column} }
+            *   { path }
             *
             =============================================================== */
 
@@ -238,6 +246,7 @@ function judgeType(ws, msg, stream) {
                 }
                 file.occupier.splice(file.occupier.indexOf(ws.userId), 1);
                 file.cursors[ws.userId] = null;
+                data.userId = ws.userId;
 
                 broadcastMsg(JSON.stringify(data), ws, false); // broadcast close info first
 
@@ -246,7 +255,8 @@ function judgeType(ws, msg, stream) {
                     console.log(data.path + ' removed.');
                     data = {
                         a: "meta",
-                        type: Constant.TYPE_OCCUPIER_CLEARED
+                        type: Constant.TYPE_OCCUPIER_CLEARED,
+                        path: data.path
                     };
                     willBroadcastToAll = true;
                     logFiles(files);
@@ -341,7 +351,7 @@ WebSocket.prototype.createOrJoinSession = function (data) {
     let userId = data.userId;
     this.portalId = portalId;
     this.userId = userId;
-    if (typeof portals[portalId] === 'undefined') {
+    if (typeof portals[portalId] === 'undefined') { // create
         portals[portalId] = {
             id: portalId,
             files: {},
@@ -351,8 +361,14 @@ WebSocket.prototype.createOrJoinSession = function (data) {
     portals[portalId].users[userId] = {
         id: userId,
         name: data.name,
+        color: "#66ccff", // TODO: Random color
         ws: this
     };
+    broadcastMsg(JSON.stringify({
+        a: Constant.META,
+        type: Constant.TYPE_USER_JOINED,
+        user: portals[portalId].users[userId]
+    }), this, false);
     console.log('Session ' + portalId + ' adds ' + userId + '\n');
 };
 

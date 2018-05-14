@@ -5,10 +5,11 @@ let Constants = {
     TYPE_OPEN_FILE: "openFile",
     TYPE_MOVE_CURSOR: "moveCursor",
     TYPE_CHANGE_GRAMMAR: "changeGrammar",
-    TYPE_CLOSE_SOCKET: "closeSocket",
-    TYPE_ACTIVE_STATUS: "changeActiveStatus",
+    TYPE_CLOSE_SOCKET: "userLeft",
+    TYPE_CHANGE_ACTIVE_STATUS: "changeActiveStatus",
     TYPE_SAVE_FILE: "saveFile",
-    TYPE_OCCUPIER_CLEARED: "occupierCleared"
+    TYPE_OCCUPIER_CLEARED: "occupierCleared",
+    TYPE_USER_JOINED: "userJoined"
 };
 
 module.exports = Constants;

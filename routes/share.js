@@ -115,9 +115,13 @@ function judgeType(ws, msg, stream) {
             case Constant.TYPE_INIT:
                 // create or join a session
                 ws.createOrJoinSession(data);
-                var tempUsers = portals[ws.portalId].users;
-                tempUsers.forEach((tempUser) => {
-                    tempUser.ws = null;
+                var tempUsers = {};
+                Object.keys(portals[ws.portalId].users).forEach((userId) => {
+                    tempUsers[userId] = {
+                        id: userId,
+                        name: portals[ws.portalId].users[userId].name,
+                        color: portals[ws.portalId].users[userId].color
+                    };
                 });
                 ws.send(JSON.stringify({
                     a: Constant.META,

@@ -7,7 +7,8 @@ let Constants = {
     TYPE_CHANGE_GRAMMAR: "changeGrammar",
     TYPE_CLOSE_SOCKET: "closeSocket",
     TYPE_ACTIVE_STATUS: "changeActiveStatus",
-    TYPE_SAVE_FILE: "saveFile"
+    TYPE_SAVE_FILE: "saveFile",
+    TYPE_OCCUPIER_CLEARED: "occupierCleared"
 };
 
 module.exports = Constants;

@@ -49,7 +49,7 @@ function startServer() {
 
         ws.on('message', function (msg) { // receive text data
             // try {
-                judgeType(ws, msg, stream);
+            judgeType(ws, msg, stream);
             // } catch (err) {
             //     console.log("Errors occur:" + err);
             // }
@@ -98,6 +98,7 @@ function judgeType(ws, msg, stream) {
         let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
         let file = data.path ? files[data.path] : null;
+        var willBroadcastToAll = false;
 
         switch (data.type) {
 
@@ -238,18 +239,27 @@ function judgeType(ws, msg, stream) {
                 file.occupier.splice(file.occupier.indexOf(ws.userId), 1);
                 file.cursors[ws.userId] = null;
 
+                broadcastMsg(JSON.stringify(data), ws, false); // broadcast close info first
+
                 if (!file.occupier.length) {
                     file = null;
                     console.log(data.path + ' removed.');
+                    data = {
+                        a: "meta",
+                        type: Constant.TYPE_OCCUPIER_CLEARED
+                    };
+                    willBroadcastToAll = true;
                 }
                 logFiles(files);
                 break;
+
             case Constant.TYPE_SAVE_FILE:
                 break;
         }
         // other meta changes: cursor position, text selection
         // and open/save/close file
-        broadcastMsg(JSON.stringify(data), ws);
+        broadcastMsg(JSON.stringify(data), ws, willBroadcastToAll);
+
     } else if (data.type === 'Buffer') {
         // fs.appendFile("/root/kevinz/portals/" + ws.portalId + ".zip", data.data, (err) => {
         //     if (err) throw err;
@@ -288,17 +298,20 @@ function judgeType(ws, msg, stream) {
     }
 }
 
-function broadcastMsg(msg, ws) {
-    Object.keys(portals[ws.portalId].users).forEach((userId) => broadcastMsgToSpecificClient(msg, ws, userId));
+function broadcastMsg(msg, ws, isToAll) {
+    let sockets = portals[ws.portalId].users;
+    Object.keys(sockets).forEach((userId) => {
+        if (isToAll || userId !== ws.userId) {
+            broadcastMsgToSpecificClient(msg, portals[ws.portalId].users[userId].ws);
+        }
+    });
 }
 
-function broadcastMsgToSpecificClient(msg, ws, userId) {
-    let data = JSON.parse(msg);
-    let sockets = portals[ws.portalId].users;
-    if (sockets[userId].ws.readyState === WebSocket.OPEN && userId !== ws.userId) {
+function broadcastMsgToSpecificClient(msg, socket) {
+    if (socket.readyState === WebSocket.OPEN) {
         console.log('Broadcasting msg to ' + userId + '\n');
         console.log(msg + '\n');
-        setTimeout(() => sockets[userId].ws.send(JSON.stringify(data)), 0);
+        setTimeout(() => socket.send(msg), 0);
     }
 }
 

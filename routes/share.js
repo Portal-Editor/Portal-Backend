@@ -115,12 +115,16 @@ function judgeType(ws, msg, stream) {
             case Constant.TYPE_INIT:
                 // create or join a session
                 ws.createOrJoinSession(data);
+                var tempUsers = portals[ws.portalId].users;
+                tempUsers.forEach((tempUser) => {
+                    tempUser.ws = null;
+                });
                 ws.send(JSON.stringify({
                     a: Constant.META,
                     type: Constant.TYPE_INIT,
                     files: portals[ws.portalId].files,
-                    users: portals[ws.portalId].users,
-                    pack: "this is zip package"
+                    users: tempUsers,
+                    pack: "this is the zip package"
                 }));
                 return;
 
@@ -361,14 +365,14 @@ WebSocket.prototype.createOrJoinSession = function (data) {
     portals[portalId].users[userId] = {
         id: userId,
         name: data.name,
-        color: "#66ccff", // TODO: Random color
-        ws: this
+        color: "#66ccff" // TODO: Random color
     };
     broadcastMsg(JSON.stringify({
         a: Constant.META,
         type: Constant.TYPE_USER_JOINED,
         user: portals[portalId].users[userId]
     }), this, false);
+    portals[portalId].users[userId].ws = this;
     console.log('Session ' + portalId + ' adds ' + userId + '\n');
 };
 

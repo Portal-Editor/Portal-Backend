@@ -3,32 +3,17 @@ let ShareDB = require('sharedb');
 let otText = require('ot-text');
 let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
-//let WebSocketJSONStream = require('websocket-json-stream');
+let Constant = require("../public/javascripts/DataConstants");
+// let fs = require("fs");
+let yauzl = require("yauzl");
+
+'use strict';
 
 ShareDB.types.register(otText.type);
-allSessions = [];
+
+var portals = [];
 
 const share = new ShareDB();
-//const stream = new WebSocketJSONStream(ws);
-
-// Register new op middleware
-share.use('op', (request, callback) => {
-    callback();
-    // setTimeout(() => {
-    //     let ws = request.agent.stream.ws; // ?
-    //     let cursors = allSessions[ws.sessionId].cursors;
-    //     if (typeof cursors !== 'undefined') {
-    //         console.log('Broadcasting ' + ws.clientId + '\'s cursors'); /////////////
-    //         for (let path in cursors) {
-    //             if (cursors.hasOwnProperty(path) && JSON.parse(cursors[path]).clientId === ws.clientId) {
-    //                 console.log(path);
-    //                 broadcastMsg(cursors[path], ws);
-    //             }
-    //         }
-    //         cursors = {};
-    //     }
-    // }, 0);
-});
 
 startServer();
 
@@ -59,66 +44,14 @@ function startServer() {
         console.log('WebSocket Server Created.');
     });
 
-    wss.on('connection', function connect(ws) {
+    wss.on('connection', function (ws) {
         const stream = new WebSocketStream(ws);
 
         ws.on('message', function (msg) { // receive text data
-            if (msg instanceof ArrayBuffer) {
-                console.log("Receive: ArrayBuffer\n");
-                return;
-            // } else if (msg instanceof Blob) {
-            //     console.log("Receive: Blob\n");
-            //     return;
-            }
-            let data = JSON.parse(msg);
-
-            if (data.a === 'meta') {
-                console.log('Received meta data:' + JSON.stringify(data) + '\n');
-                if (data.type === 'init') {
-                    // create or join a session
-                    ws.createOrJoinSession(data);
-                    ws.send(JSON.stringify(allSessions[ws.sessionId].tabs));
-                } else {
-                    // tab changes: add or remove tab
-                    let logTabs = false;
-
-                    if (data.type === 'editorClosed') {
-                        let tabs = allSessions[ws.sessionId].tabs;
-                        let index = tabs.indexOf(data.path);
-                        if (index > -1) {
-                            tabs.splice(index, 1);
-                            console.log(data.path + ' removed.');
-                            logTabs = true;
-                        }
-
-                    } else if (data.type === 'addTab') {
-                        let tabs = allSessions[ws.sessionId].tabs;
-                        if (tabs.indexOf(data.uri) !== -1) {
-                            return;
-                        }
-                        tabs.push(data.uri);
-                        logTabs = true;
-                        console.log(data.uri + ' added');
-
-                    } else if (data.type === 'cursorMoved') {
-                        let cursors = allSessions[ws.sessionId].cursors;
-                        cursors[data.path] = msg;
-                        return;
-                    }
-
-                    if (logTabs) {
-                        console.log('current tabs: ');
-                        console.log(allSessions[ws.sessionId].tabs);
-                        console.log('\n');
-                    }
-                    // other meta changes: cursor position, text selection
-                    // and open/save/close file
-                    broadcastMsg(msg, ws);
-                }
-            } else {
-                // OT
-                console.log(data);
-                stream.push(JSON.parse(msg));
+            try {
+                judgeType(ws, msg, stream);
+            } catch (err) {
+                console.log("Errors occur:" + err);
             }
         });
 
@@ -127,16 +60,15 @@ function startServer() {
             if (code === 1006) {
                 return;
             }
-            let index = allSessions[ws.sessionId].wss.indexOf(ws);
-            if (index > -1) {
-                allSessions[ws.sessionId].wss.splice(index, 1);
-                console.log('We just lost one connection: ' + ws.clientId + ' from ' + ws.sessionId);
-                console.log('Now ' + ws.sessionId + ' has ' + allSessions[ws.sessionId].wss.length + ' connection(s)');
+            if (portals[ws.portalId].users[ws.userId]) {
+                portals[ws.portalId].users[ws.userId] = null;
+                console.log('We just lost one connection: ' + ws.userId + ' from ' + ws.portalId);
+                console.log('Now ' + ws.portalId + ' has ' + portals[ws.portalId].users.length + ' connection(s)');
                 console.log('\n');
                 let msg = {
-                    a: 'meta',
-                    type: 'socketClose',
-                    clientId: ws.clientId
+                    a: Constant.META,
+                    type: Constant.TYPE_CLOSE_SOCKET,
+                    clientId: ws.userId
                 };
                 broadcastMsg(JSON.stringify(msg), ws);
             }
@@ -151,36 +83,261 @@ function startServer() {
             process.exit();
         });
     });
-};
+}
+
+function logFiles(files) {
+    console.log('current files: ');
+    console.log(files);
+    console.log('\n');
+}
+
+function judgeType(ws, msg, stream) {
+    let data = JSON.parse(msg);
+    if (data.a === Constant.META) {
+        console.log('Received meta data:' + JSON.stringify(data) + '\n');
+        let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
+        let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
+        let file = data.path ? files[data.path] : null;
+
+        switch (data.type) {
+
+            /* ===============================================================
+            *
+            *   Init
+            *   Dealing when someone's creating or joining a portal project
+            *
+            *   Needed:
+            *   { clientId, sessionId, name }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_INIT:
+                // create or join a session
+                ws.createOrJoinSession(data);
+                ws.send(JSON.stringify(portals[ws.portalId].files));
+                return;
+
+            /* ===============================================================
+            *
+            *   Move Cursor
+            *   - dealing after the user moving cursor -
+            *
+            *   Needed:
+            *   { path, newPosition: {row, column} }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_MOVE_CURSOR:
+                let cursor = file.cursors[ws.userId];
+                cursor.row = data.newPosition.row;
+                cursor.column = data.newPosition.column;
+                console.log('Ready to broadcast ' + ws.userId + '\'s cursor');
+                file.occupier.forEach((userId) => {
+                    if (userId !== ws.userId) {
+                        console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + userId);
+                        broadcastMsgToSpecificClient(file.cursors[ws.userId], ws, ws.userId);
+                    }
+                });
+                return;
+
+            /* ===============================================================
+            *
+            *   Activate
+            *   - change status to record if user is focusing on the file -
+            *
+            *   Needed:
+            *   { path }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_ACTIVE_STATUS:
+                changeActivationStatus(ws, users[userId].focusOn, false);
+                changeActivationStatus(ws, data.path, true);
+                break;
+
+            /* ===============================================================
+            *
+            *   Change Grammar
+            *   - change grammar of specific file -
+            *
+            *   Needed:
+            *   { path, grammar }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_CHANGE_GRAMMAR:
+                if (file.grammar !== data.grammar) {
+                    file.grammar = data.grammar;
+                    console.log('User ' + ws.userId + ' has changed grammar to ' + data.grammar);
+                }
+                break;
+
+
+            /* ===============================================================
+            *
+            *   Open file
+            *   - record that the user is opening a file -
+            *
+            *   Needed:
+            *   { path }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_OPEN_FILE:
+                let focus = portals[ws.portalId].users[ws.userId].focusOn;
+                if (focus) {
+                    let i = portals[ws.portalId].files[focus].activeUser.indexOf(ws.userId);
+                    portals[ws.portalId].files[focus].activeUser.splice(i, 1);
+                }
+                portals[ws.portalId].users[ws.userId].focusOn = data.path;
+
+                if (!files[data.path]) {
+                    files[data.path] = {
+                        path: data.path,
+                        grammar: data.grammar,
+                        occupier: [],
+                        activeUser: [],
+                        cursors: {}
+                    };
+                }
+
+                files[data.path].occupier.push(ws.userId);
+                files[data.path].activeUser.push(ws.userId);
+
+                files[data.path].cursors[ws.userId] = {
+                    row: 0,
+                    column: 0,
+                    // TODO: random color
+                    color: ""
+                };
+                console.log(data.path + ' added\n');
+                logFiles(files);
+                break;
+
+            /* ===============================================================
+            *
+            *   Close file
+            *   - process after the user closing the file -
+            *
+            *   Needed:
+            *   { path, newPath, newPosition: {row, column} }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_CLOSE_FILE:
+                if (!file.path) {
+                    console.log(data.path + ' is not an allowed path.');
+                    return;
+                }
+
+                // TODO: Refactor
+                let index = file.activeUser.indexOf(ws.userId);
+                if (index !== -1) {
+                    file.activeUser.splice(index, 1);
+                }
+                file.occupier.splice(file.occupier.indexOf(ws.userId), 1);
+                file.cursors[ws.userId] = null;
+
+                if (!file.occupier.length) {
+                    file = null;
+                    console.log(data.path + ' removed.');
+                }
+                logFiles(files);
+                break;
+            case Constant.TYPE_SAVE_FILE:
+                break;
+        }
+        // other meta changes: cursor position, text selection
+        // and open/save/close file
+        broadcastMsg(JSON.stringify(data), ws);
+    } else if (data.type === 'Buffer') {
+        // fs.appendFile("/root/kevinz/portals/" + ws.portalId + ".zip", data.data, (err) => {
+        //     if (err) throw err;
+        //     console.log('The "data to append" was appended to file!');
+        // });
+        console.log("File length: " + data.data.length);
+        yauzl.fromBuffer(data.data, {
+            lazyEntries: false,
+            decodeStrings: true,
+            validateEntrySizes: true
+        }, (err, zipfile) => {
+            if (err) throw err;
+            zipfile.readEntry();
+            zipfile.on("entry", function (entry) {
+                if (/\/$/.test(entry.fileName)) {
+                    // Directory file names end with '/'.
+                    // Note that entires for directories themselves are optional.
+                    // An entry's fileName implicitly requires its parent directories to exist.
+                    zipfile.readEntry();
+                } else {
+                    // file entry
+                    zipfile.openReadStream(entry, function (err, readStream) {
+                        if (err) throw err;
+                        readStream.on("end", function () {
+                            zipfile.readEntry();
+                        });
+                        readStream.pipe("/root/kevinz/portals/");
+                    });
+                }
+            });
+        });
+    } else {
+        // OT
+        console.log(JSON.stringify(data));
+        stream.push(data);
+    }
+}
 
 function broadcastMsg(msg, ws) {
-    let sockets = allSessions[ws.sessionId].wss;
-    sockets.forEach((socket) => {
-        if (socket.readyState === WebSocket.OPEN && (socket.getId() !== ws.getId())) {
-            console.log('Broadcasting msg to ' + socket.clientId + '\n');
-            console.log(msg);
-            console.log('\n');
-            setTimeout(() => {
-                socket.send(msg);
-            }, 0);
+    Object.keys(portals[ws.portalId].users).forEach((userId) => broadcastMsgToSpecificClient(msg, ws, userId));
+}
+
+function broadcastMsgToSpecificClient(msg, ws, userId) {
+    let data = JSON.parse(msg);
+    let sockets = portals[ws.portalId].users;
+    if (sockets[userId].readyState === WebSocket.OPEN && (userId !== ws.getId())) {
+        console.log('Broadcasting msg to ' + userId + '\n');
+        console.log(msg + '\n');
+        setTimeout(() => sockets[userId].ws.send(JSON.stringify(data)), 0);
+    }
+}
+
+function changeActivationStatus(ws, path, isActive) {
+    if (isActive) {
+        if (portals[ws.portalId].files[path].activeUser.includes(ws.userId)) {
+            portals[ws.portalId].files[path].activeUser.push(ws.userId);
+            portals[ws.portalId].users[ws.userId].focusOn = path;
+        } else {
+            console.log("User " + ws.userId + " is not active on file " + path + ".");
+            return;
         }
-    });
+    } else {
+        portals[ws.portalId].files[path].activeUser.splice(portals[ws.portalId].files[path].activeUser.indexOf(ws.userId), 1);
+        portals[ws.portalId].users[ws.userId].focusOn = null;
+    }
+    // file.activeUser.splice(file.activeUser.indexOf(userId), 1);
+    console.log('Occupier' + userId + ' has changed status to ' + isActive ?
+        "active" : "inactive" + " of " + path);
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {
-    let sessionId = data.sessionId;
-    let clientId = data.clientId;
-    this.sessionId = sessionId;
-    this.clientId = clientId;
-    if (typeof allSessions[sessionId] === 'undefined') {
-        let session = {};
-        session.wss = [];
-        session.tabs = [];
-        session.cursors = {};
-        allSessions[sessionId] = session;
+    let portalId = data.portalId;
+    let userId = data.userId;
+    this.portalId = portalId;
+    this.userId = userId;
+    if (typeof portals[portalId] === 'undefined') {
+        portals[portalId] = {
+            id: portalId,
+            files: {},
+            users: {}
+        };
     }
-    allSessions[sessionId].wss.push(this);
-    console.log('Session ' + sessionId + ' adds ' + clientId + '\n');
+    portals[portalId].users[userId] = {
+        id: userId,
+        name: data.name,
+        ws: this
+    };
+    console.log('Session ' + portalId + ' adds ' + userId + '\n');
 };
 
 WebSocket.prototype.getId = function () {

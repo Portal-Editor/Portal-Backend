@@ -249,9 +249,12 @@ function judgeType(ws, msg, stream) {
                         type: Constant.TYPE_OCCUPIER_CLEARED
                     };
                     willBroadcastToAll = true;
+                    logFiles(files);
+                    break;
+                } else {
+                    logFiles(files);
+                    return;
                 }
-                logFiles(files);
-                break;
 
             case Constant.TYPE_SAVE_FILE:
                 break;

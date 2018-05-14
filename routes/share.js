@@ -295,7 +295,7 @@ function broadcastMsg(msg, ws) {
 function broadcastMsgToSpecificClient(msg, ws, userId) {
     let data = JSON.parse(msg);
     let sockets = portals[ws.portalId].users;
-    if (sockets[userId].readyState === WebSocket.OPEN && (userId !== ws.getId())) {
+    if (sockets[userId].ws.readyState === WebSocket.OPEN && (userId !== ws.getId())) {
         console.log('Broadcasting msg to ' + userId + '\n');
         console.log(msg + '\n');
         setTimeout(() => sockets[userId].ws.send(JSON.stringify(data)), 0);

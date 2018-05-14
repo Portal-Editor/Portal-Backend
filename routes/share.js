@@ -60,7 +60,7 @@ function startServer() {
             if (code === 1006) {
                 return;
             }
-            if (portals[ws.portalId].users[ws.userId]) {
+            if (portals[ws.portalId] && portals[ws.portalId].users[ws.userId]) {
                 portals[ws.portalId].users[ws.userId] = null;
                 console.log('We just lost one connection: ' + ws.userId + ' from ' + ws.portalId);
                 console.log('Now ' + ws.portalId + ' has ' + portals[ws.portalId].users.length + ' connection(s)');

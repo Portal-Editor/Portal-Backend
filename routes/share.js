@@ -48,11 +48,11 @@ function startServer() {
         const stream = new WebSocketStream(ws);
 
         ws.on('message', function (msg) { // receive text data
-            try {
+            // try {
                 judgeType(ws, msg, stream);
-            } catch (err) {
-                console.log("Errors occur:" + err);
-            }
+            // } catch (err) {
+            //     console.log("Errors occur:" + err);
+            // }
         });
 
         ws.on('close', (code, reason) => {
@@ -295,7 +295,7 @@ function broadcastMsg(msg, ws) {
 function broadcastMsgToSpecificClient(msg, ws, userId) {
     let data = JSON.parse(msg);
     let sockets = portals[ws.portalId].users;
-    if (sockets[userId].ws.readyState === WebSocket.OPEN) {
+    if (sockets[userId].ws.readyState === WebSocket.OPEN && userId !== ws.userId) {
         console.log('Broadcasting msg to ' + userId + '\n');
         console.log(msg + '\n');
         setTimeout(() => sockets[userId].ws.send(JSON.stringify(data)), 0);

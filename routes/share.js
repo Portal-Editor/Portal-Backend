@@ -6,6 +6,7 @@ let WebSocketStream = require('../public/javascripts/WebSocketStream');
 let Constant = require("../public/javascripts/DataConstants");
 // let fs = require("fs");
 let yauzl = require("yauzl");
+let yazl = require("yazl");
 const fs = require("fs");
 
 'use strict';
@@ -129,7 +130,7 @@ function judgeType(ws, msg, stream) {
                     type: Constant.TYPE_INIT,
                     files: portals[ws.portalId].files,
                     users: tempUsers,
-                    pack: "this is the zip package"
+                    data: makeZip()
                 }));
                 return;
 
@@ -283,20 +284,16 @@ function judgeType(ws, msg, stream) {
         broadcastMsg(JSON.stringify(data), ws, willBroadcastToAll);
 
     } else if (data.type === 'Buffer') {
-        // fs.appendFile("/root/kevinz/portals/" + ws.portalId + ".zip", data.data, (err) => {
-        //     if (err) throw err;
-        //     console.log('The "data to append" was appended to file!');
-        // });
         let yauzlFromBuffer = promisify(yauzl.fromBuffer);
         try {
             (async () => {
                 let zipfile = await yauzlFromBuffer(Buffer.from(data.data), {lazyEntries: true});
                 console.log("Number of entries: ", zipfile.entryCount);
                 let openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
-                let portalDir = "/root/kevinz/portals/" + ws.portalId;
+                let portalDir = Constant.DIR_PORTAL_ROOT + ws.portalId;
                 fs.exists(portalDir, (exists) => {
                     if (!exists) {
-                        fs.mkdir(portalDir, function (err) {
+                        fs.mkdir(portalDir, (err) => {
                             if (err) throw err;
                             console.log('Make new directory ' + ws.portalId + " .");
                         });
@@ -304,17 +301,15 @@ function judgeType(ws, msg, stream) {
                 });
                 zipfile.readEntry();
                 zipfile.on("entry", async (entry) => {
-                    console.log("Found files: ", entry.fileName);
+                    console.log("Found file: ", entry.fileName);
                     let stream = await openReadStream(entry);
                     stream.on("end", () => {
                         console.log("Write file to specific portal folder.\n");
                         zipfile.readEntry();
-                    }).on('error', (err) => {
-                        console.log(err);
                     });
                     stream.pipe(fs.createWriteStream(portalDir + "/" + entry.fileName));
                 }).on("end", () => {
-                    console.log("end of entries");
+                    console.log("Finish unzip process.");
                 });
             })();
         } catch (err) {
@@ -342,6 +337,21 @@ function broadcastMsgToSpecificClient(msg, socket) {
         console.log(msg + '\n');
         setTimeout(() => socket.send(msg), 0);
     }
+}
+
+function makeZip() {
+    let zipfile = new yazl.ZipFile();
+    return "Make zip part not finished yet";
+    // TODO: use GLOB to get files
+    zipfile.addFile("file1.txt", "file1.txt");
+    zipfile.outputStream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + ".zip")).on("close", function () {
+        console.log("Zip finished.");
+    });
+    zipfile.end();
+    return fs.readFile(Constant.DIR_PORTAL_ROOT + ws.portalId + ".zip", (err, buffer) => {
+        if (err) throw err;
+        return buffer;
+    });
 }
 
 function changeActivationStatus(ws, path, isActive) {

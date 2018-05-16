@@ -9,7 +9,9 @@ let Constants = {
     TYPE_CHANGE_ACTIVE_STATUS: "changeActiveStatus",
     TYPE_SAVE_FILE: "saveFile",
     TYPE_OCCUPIER_CLEARED: "occupierCleared",
-    TYPE_USER_JOINED: "userJoined"
+    TYPE_USER_JOINED: "userJoined",
+
+    DIR_PORTAL_ROOT: "/root/kevinz/portals/"
 };
 
 module.exports = Constants;

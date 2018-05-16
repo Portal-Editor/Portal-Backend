@@ -288,26 +288,23 @@ function judgeType(ws, msg, stream) {
         //     console.log('The "data to append" was appended to file!');
         // });
         let yauzlFromBuffer = promisify(yauzl.fromBuffer);
-        console.log('Received data:' + JSON.stringify(data) + '\n');
         try {
             (async () => {
-                let zipfile = await yauzlFromBuffer(simpleZipBuffer, {lazyEntries: true});
-                console.log("number of entries:", zipfile.entryCount);
+                let zipfile = await yauzlFromBuffer(Buffer.from(data.data), {lazyEntries: true});
+                console.log("Number of entries: ", zipfile.entryCount);
                 let openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
                 zipfile.readEntry();
                 zipfile.on("entry", async (entry) => {
-                    console.log("found entry:", entry.fileName);
+                    console.log("Found files: ", entry.fileName);
                     let stream = await openReadStream(entry);
                     stream.on("end", () => {
-                        console.log("<EOF>");
+                        console.log("Write file to specific portal folder.\n");
+                        stream.pipe(fs.createWriteStream("./portals/" + ws.portalId + "/" + entry.fileName));
                         zipfile.readEntry();
-                    });
-                    stream.on('error', (err) => {
+                    }).on('error', (err) => {
                         console.log(err);
                     });
-                    stream.pipe(fs.createWriteStream("/root/kevinz/" + ws.portalId + ".zip"));
-                });
-                zipfile.on("end", () => {
+                }).on("end", () => {
                     console.log("end of entries");
                 });
             })();

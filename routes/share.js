@@ -287,34 +287,30 @@ function judgeType(ws, msg, stream) {
         //     if (err) throw err;
         //     console.log('The "data to append" was appended to file!');
         // });
+        let yauzlFromBuffer = promisify(yauzl.fromBuffer);
         console.log('Received data:' + JSON.stringify(data) + '\n');
         try {
-            console.log("File length: " + data.data.length);
-            yauzl.fromBuffer(Buffer.from(data.data), {
-                lazyEntries: true,
-                decodeStrings: true,
-                validateEntrySizes: true
-            }, (err, zipfile) => {
-                if (err) throw err;
+            (async () => {
+                let zipfile = await yauzlFromBuffer(simpleZipBuffer, {lazyEntries: true});
+                console.log("number of entries:", zipfile.entryCount);
+                let openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
                 zipfile.readEntry();
-                zipfile.on("entry", function (entry) {
-                    if (/\/root\/kevinz\/portals\/$/.test(entry.fileName)) {
-                        // Directory file names end with '/'.
-                        // Note that entires for directories themselves are optional.
-                        // An entry's fileName implicitly requires its parent directories to exist.
+                zipfile.on("entry", async (entry) => {
+                    console.log("found entry:", entry.fileName);
+                    let stream = await openReadStream(entry);
+                    stream.on("end", () => {
+                        console.log("<EOF>");
                         zipfile.readEntry();
-                    } else {
-                        // file entry
-                        zipfile.openReadStream(entry, function (err, readStream) {
-                            if (err) throw err;
-                            readStream.on("end", function () {
-                                zipfile.readEntry();
-                            });
-                            // readStream.pipe(fs.createWriteStream("/root/kevinz/portals/" + ws.portalId + ".zip"));
-                        });
-                    }
+                    });
+                    stream.on('error', (err) => {
+                        console.log(err);
+                    });
+                    stream.pipe(fs.createWriteStream("/root/kevinz/" + ws.portalId + ".zip"));
                 });
-            });
+                zipfile.on("end", () => {
+                    console.log("end of entries");
+                });
+            })();
         } catch (err) {
             console.log("Errors occur:" + err);
         }
@@ -389,6 +385,17 @@ WebSocket.prototype.createOrJoinSession = function (data) {
 WebSocket.prototype.getId = function () {
     return this.upgradeReq.headers['sec-websocket-key'];
 };
+
+function promisify(api) {
+    return function(...args) {
+        return new Promise(function(resolve, reject) {
+            api(...args, function(err, response) {
+                if (err) return reject(err);
+                resolve(response);
+            });
+        });
+    };
+}
 
 const router = express.Router();
 

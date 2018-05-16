@@ -7,6 +7,7 @@ let Constant = require("../public/javascripts/DataConstants");
 // let fs = require("fs");
 let yauzl = require("yauzl");
 const fs = require("fs");
+require('babel-core/register');
 
 'use strict';
 

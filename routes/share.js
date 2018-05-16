@@ -298,7 +298,7 @@ function judgeType(ws, msg, stream) {
                 if (err) throw err;
                 zipfile.readEntry();
                 zipfile.on("entry", function (entry) {
-                    if (/\/$/.test(entry.fileName)) {
+                    if (/\/root\/kevinz\/portals\/$/.test(entry.fileName)) {
                         // Directory file names end with '/'.
                         // Note that entires for directories themselves are optional.
                         // An entry's fileName implicitly requires its parent directories to exist.
@@ -310,7 +310,7 @@ function judgeType(ws, msg, stream) {
                             readStream.on("end", function () {
                                 zipfile.readEntry();
                             });
-                            readStream.pipe(fs.createWriteStream("/root/kevinz/portals/" + ws.portalId + ".zip"));
+                            // readStream.pipe(fs.createWriteStream("/root/kevinz/portals/" + ws.portalId + ".zip"));
                         });
                     }
                 });

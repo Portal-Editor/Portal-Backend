@@ -286,9 +286,10 @@ function judgeType(ws, msg, stream) {
         //     if (err) throw err;
         //     console.log('The "data to append" was appended to file!');
         // });
+        console.log('Received data:' + JSON.stringify(data) + '\n');
         try {
             console.log("File length: " + data.data.length);
-            yauzl.fromBuffer(data.data, {
+            yauzl.fromBuffer(Buffer.from(data.data), {
                 lazyEntries: false,
                 decodeStrings: true,
                 validateEntrySizes: true

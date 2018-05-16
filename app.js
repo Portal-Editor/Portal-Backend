@@ -4,6 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var stylus = require('stylus');
+require('babel-core/register');
 
 var indexRouter = require('./routes/index');
 var authRouter = require('./routes/auth');

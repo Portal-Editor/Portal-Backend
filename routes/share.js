@@ -290,7 +290,7 @@ function judgeType(ws, msg, stream) {
         try {
             console.log("File length: " + data.data.length);
             yauzl.fromBuffer(Buffer.from(data.data), {
-                lazyEntries: false,
+                lazyEntries: true,
                 decodeStrings: true,
                 validateEntrySizes: true
             }, (err, zipfile) => {

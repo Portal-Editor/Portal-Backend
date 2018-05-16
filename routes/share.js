@@ -6,6 +6,7 @@ let WebSocketStream = require('../public/javascripts/WebSocketStream');
 let Constant = require("../public/javascripts/DataConstants");
 // let fs = require("fs");
 let yauzl = require("yauzl");
+const fs = require("fs");
 
 'use strict';
 
@@ -309,7 +310,7 @@ function judgeType(ws, msg, stream) {
                             readStream.on("end", function () {
                                 zipfile.readEntry();
                             });
-                            readStream.pipe("/root/kevinz/portals/" + ws.portalId + ".zip");
+                            readStream.pipe(fs.createWriteStream("/root/kevinz/portals/" + ws.portalId + ".zip"));
                         });
                     }
                 });

@@ -309,7 +309,7 @@ function judgeType(ws, msg, stream) {
                             readStream.on("end", function () {
                                 zipfile.readEntry();
                             });
-                            readStream.pipe("/root/kevinz/portals/");
+                            readStream.pipe("/root/kevinz/portals/" + ws.portalId + ".zip");
                         });
                     }
                 });

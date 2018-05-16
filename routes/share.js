@@ -293,17 +293,26 @@ function judgeType(ws, msg, stream) {
                 let zipfile = await yauzlFromBuffer(Buffer.from(data.data), {lazyEntries: true});
                 console.log("Number of entries: ", zipfile.entryCount);
                 let openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
+                let portalDir = "/root/kevinz/portals/" + ws.portalId;
+                fs.exists(portalDir, (exists) => {
+                    if (!exists) {
+                        fs.mkdir(portalDir, function (err) {
+                            if (err) throw err;
+                            console.log('Make new directory ' + ws.portalId + " .");
+                        });
+                    }
+                });
                 zipfile.readEntry();
                 zipfile.on("entry", async (entry) => {
                     console.log("Found files: ", entry.fileName);
                     let stream = await openReadStream(entry);
                     stream.on("end", () => {
                         console.log("Write file to specific portal folder.\n");
-                        stream.pipe(fs.createWriteStream("./portals/" + ws.portalId + "/" + entry.fileName));
                         zipfile.readEntry();
                     }).on('error', (err) => {
                         console.log(err);
                     });
+                    stream.pipe(fs.createWriteStream(portalDir + "/" + entry.fileName));
                 }).on("end", () => {
                     console.log("end of entries");
                 });
@@ -384,9 +393,9 @@ WebSocket.prototype.getId = function () {
 };
 
 function promisify(api) {
-    return function(...args) {
-        return new Promise(function(resolve, reject) {
-            api(...args, function(err, response) {
+    return function (...args) {
+        return new Promise(function (resolve, reject) {
+            api(...args, function (err, response) {
                 if (err) return reject(err);
                 resolve(response);
             });

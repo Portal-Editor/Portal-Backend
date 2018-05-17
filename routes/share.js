@@ -4,10 +4,10 @@ let otText = require('ot-text');
 let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
 let Constant = require("../public/javascripts/DataConstants");
-// let fs = require("fs");
+let tinycolor = require("tinycolor2");
 let yauzl = require("yauzl");
 let yazl = require("yazl");
-const fs = require("fs");
+const fs = require('fs-extra')
 
 'use strict';
 
@@ -33,14 +33,8 @@ function startServer() {
             zlibInflateOptions: {
                 chunkSize: 10 * 1024
             },
-            // Other options settable:
-            clientNoContextTakeover: true, // Defaults to negotiated value.
-            serverNoContextTakeover: true, // Defaults to negotiated value.
-            clientMaxWindowBits: 10, // Defaults to negotiated value.
-            serverMaxWindowBits: 10, // Defaults to negotiated value.
-            // Below options specified as default values.
-            concurrencyLimit: 10, // Limits zlib concurrency for perf.
-            threshold: 1024, // Size (in bytes) below which messages should not be compressed.
+            concurrencyLimit: 10,
+            threshold: 1024
         }
     }, () => {
         console.log('WebSocket Server Created.');
@@ -170,7 +164,7 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_CHANGE_ACTIVE_STATUS:
-                changeActivationStatus(ws, users[userId].focusOn, false);
+                changeActivationStatus(ws, users[ws.userId].focusOn, false);
                 changeActivationStatus(ws, data.path, true);
                 break;
 
@@ -291,23 +285,26 @@ function judgeType(ws, msg, stream) {
                 console.log("Number of entries: ", zipfile.entryCount);
                 let openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
                 let portalDir = Constant.DIR_PORTAL_ROOT + ws.portalId;
-                fs.exists(portalDir, (exists) => {
-                    if (!exists) {
-                        fs.mkdir(portalDir, (err) => {
-                            if (err) throw err;
-                            console.log('Make new directory ' + ws.portalId + " .");
-                        });
-                    }
-                });
+                // fs.exists(portalDir, (exists) => {
+                //     if (!exists) {
+                //         fs.mkdir(portalDir, (err) => {
+                //             if (err) throw err;
+                //             console.log('Make new directory ' + ws.portalId + " .");
+                //         });
+                //     }
+                // });
                 zipfile.readEntry();
                 zipfile.on("entry", async (entry) => {
                     console.log("Found file: ", entry.fileName);
                     let stream = await openReadStream(entry);
-                    stream.on("end", () => {
+                    stream.on("data", (data) => {
                         console.log("Write file to specific portal folder.\n");
+                        fs.outputFile(portalDir + "/" + entry.fileName, data);
+                    });
+                    stream.on("end", () => {
                         zipfile.readEntry();
                     });
-                    stream.pipe(fs.createWriteStream(portalDir + "/" + entry.fileName));
+                    // stream.pipe();
                 }).on("end", () => {
                     console.log("Finish unzip process.");
                 });
@@ -342,6 +339,7 @@ function broadcastMsgToSpecificClient(msg, socket) {
 function makeZip() {
     let zipfile = new yazl.ZipFile();
     return "Make zip part not finished yet";
+
     // TODO: use GLOB to get files
     zipfile.addFile("file1.txt", "file1.txt");
     zipfile.outputStream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + ".zip")).on("close", function () {
@@ -367,9 +365,14 @@ function changeActivationStatus(ws, path, isActive) {
         portals[ws.portalId].files[path].activeUser.splice(portals[ws.portalId].files[path].activeUser.indexOf(ws.userId), 1);
         portals[ws.portalId].users[ws.userId].focusOn = null;
     }
-    // file.activeUser.splice(file.activeUser.indexOf(userId), 1);
-    console.log('Occupier' + userId + ' has changed status to ' + isActive ?
+    console.log('Occupier' + ws.userId + ' has changed status to ' + isActive ?
         "active" : "inactive" + " of " + path);
+}
+
+function createRandomColor() {
+    let h = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
+    var color = tinycolor("hsl(" + Math.floor(h * 360) + ", 5%, 95%)");
+    return color.toHexString();
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {
@@ -387,7 +390,7 @@ WebSocket.prototype.createOrJoinSession = function (data) {
     portals[portalId].users[userId] = {
         id: userId,
         name: data.name,
-        color: "#66ccff" // TODO: Random color
+        color: createRandomColor()
     };
     broadcastMsg(JSON.stringify({
         a: Constant.META,

@@ -11,7 +11,9 @@ let Constants = {
     TYPE_OCCUPIER_CLEARED: "occupierCleared",
     TYPE_USER_JOINED: "userJoined",
 
-    DIR_PORTAL_ROOT: "/root/kevinz/portals/"
+    DIR_PORTAL_ROOT: "/root/kevinz/portals/",
+
+    GOLDEN_RATIO_CONJUGATE: 0.618033988749895
 };
 
 module.exports = Constants;

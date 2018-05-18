@@ -290,8 +290,8 @@ function judgeType(ws, msg, stream) {
                     console.log("Found file: ", entry.fileName);
                     let stream = await openReadStream(entry);
                     stream.on("data", (data) => {
-                        fs.outputFile(portalDir + "/" + entry.fileName, data)
-                            .then(() => console.log("Write file to specific portal folder.\n"));
+                        fs.outputFileSync(portalDir + "/" + entry.fileName, data);
+                        console.log("Write file to specific portal folder.\n");
                     }).on("end", () => {
                         zipfile.readEntry();
                     });
@@ -340,7 +340,6 @@ function makeZip(ws) {
         stream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip"))
         (await stream.on('finish')).then(() => console.log("Out zip is written."));
         console.log("ready to return");
-
 
         let read = await fs.readFile(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip");
         let buffer = await read.then((err, buffer) => {

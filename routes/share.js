@@ -6,8 +6,9 @@ let WebSocketStream = require('../public/javascripts/WebSocketStream');
 let Constant = require("../public/javascripts/DataConstants");
 let tinycolor = require("tinycolor2");
 let yauzl = require("yauzl");
-let yazl = require("yazl");
-const fs = require('fs-extra')
+let JSZip = require("jszip");
+const fs = require('fs-extra');
+const klawSync = require('klaw-sync')
 
 'use strict';
 
@@ -36,14 +37,12 @@ function startServer() {
             concurrencyLimit: 10,
             threshold: 1024
         }
-    }, () => {
-        console.log('WebSocket Server Created.');
-    });
+    }, () => console.log('WebSocket Server Created.'));
 
-    wss.on('connection', function (ws) {
+    wss.on('connection', (ws) => {
         const stream = new WebSocketStream(ws);
 
-        ws.on('message', function (msg) { // receive text data
+        ws.on('message', (msg) => { // receive text data
             // try {
             judgeType(ws, msg, stream);
             // } catch (err) {
@@ -75,9 +74,7 @@ function startServer() {
     });
 
     process.on('SIGINT', () => {
-        wss.close(() => {
-            process.exit();
-        });
+        wss.close(() => process.exit());
     });
 }
 
@@ -110,8 +107,11 @@ function judgeType(ws, msg, stream) {
 
             case Constant.TYPE_INIT:
                 // create or join a session
-                ws.createOrJoinSession(data);
-                var tempUsers = {};
+                let isCreate = ws.createOrJoinSession(data);
+                if (!isCreate) {
+                    makeZip(ws);
+                }
+                let tempUsers = {};
                 Object.keys(portals[ws.portalId].users).forEach((userId) => {
                     tempUsers[userId] = {
                         id: userId,
@@ -124,7 +124,7 @@ function judgeType(ws, msg, stream) {
                     type: Constant.TYPE_INIT,
                     files: portals[ws.portalId].files,
                     users: tempUsers,
-                    data: makeZip()
+                    data: isCreate ? null : portals[ws.portalId].data
                 }));
                 return;
 
@@ -252,7 +252,7 @@ function judgeType(ws, msg, stream) {
                 file.cursors[ws.userId] = null;
                 data.userId = ws.userId;
 
-                broadcastMsg(JSON.stringify(data), ws, false); // broadcast close info first
+                broadcastMsg(JSON.stringify(data), ws); // broadcast close info first
 
                 if (!file.occupier.length) {
                     file = null;
@@ -285,29 +285,17 @@ function judgeType(ws, msg, stream) {
                 console.log("Number of entries: ", zipfile.entryCount);
                 let openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
                 let portalDir = Constant.DIR_PORTAL_ROOT + ws.portalId;
-                // fs.exists(portalDir, (exists) => {
-                //     if (!exists) {
-                //         fs.mkdir(portalDir, (err) => {
-                //             if (err) throw err;
-                //             console.log('Make new directory ' + ws.portalId + " .");
-                //         });
-                //     }
-                // });
                 zipfile.readEntry();
                 zipfile.on("entry", async (entry) => {
                     console.log("Found file: ", entry.fileName);
                     let stream = await openReadStream(entry);
                     stream.on("data", (data) => {
-                        console.log("Write file to specific portal folder.\n");
-                        fs.outputFile(portalDir + "/" + entry.fileName, data);
-                    });
-                    stream.on("end", () => {
+                        fs.outputFile(portalDir + "/" + entry.fileName, data)
+                            .then(() => console.log("Write file to specific portal folder.\n"));
+                    }).on("end", () => {
                         zipfile.readEntry();
                     });
-                    // stream.pipe();
-                }).on("end", () => {
-                    console.log("Finish unzip process.");
-                });
+                }).on("end", () => console.log("Finish unzip process."));
             })();
         } catch (err) {
             console.log("Errors occur:" + err);
@@ -319,7 +307,7 @@ function judgeType(ws, msg, stream) {
     }
 }
 
-function broadcastMsg(msg, ws, isToAll) {
+function broadcastMsg(msg, ws, isToAll = false) {
     let sockets = portals[ws.portalId].users;
     Object.keys(sockets).forEach((userId) => {
         if (isToAll || userId !== ws.userId) {
@@ -330,26 +318,39 @@ function broadcastMsg(msg, ws, isToAll) {
 
 function broadcastMsgToSpecificClient(msg, socket) {
     if (socket.readyState === WebSocket.OPEN) {
-        console.log('Broadcasting msg to ' + socket.userId + '\n');
-        console.log(msg + '\n');
+        console.log('Broadcasting msg to ' + socket.userId + '\n' + msg + '\n');
         setTimeout(() => socket.send(msg), 0);
     }
 }
 
-function makeZip() {
-    let zipfile = new yazl.ZipFile();
-    return "Make zip part not finished yet";
+function makeZip(ws) {
+    let zip = new JSZip();
 
-    // TODO: use GLOB to get files
-    zipfile.addFile("file1.txt", "file1.txt");
-    zipfile.outputStream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + ".zip")).on("close", function () {
-        console.log("Zip finished.");
-    });
-    zipfile.end();
-    return fs.readFile(Constant.DIR_PORTAL_ROOT + ws.portalId + ".zip", (err, buffer) => {
-        if (err) throw err;
-        return buffer;
-    });
+    (async () => {
+        let root = Constant.DIR_PORTAL_ROOT + ws.portalId;
+
+        console.log("before klaw");
+        const paths = klawSync(root);
+        paths.forEach(item => {
+            zip.file(item.path.replace(Constant.DIR_PORTAL_ROOT + ws.portalId, ""), fs.readFileSync(item.path));
+        });
+        console.log("Finished zip process.");
+
+        let stream = zip.generateNodeStream({type: 'nodebuffer', streamFiles: true});
+        stream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip"))
+        (await stream.on('finish')).then(() => console.log("Out zip is written."));
+        console.log("ready to return");
+
+
+        let read = await fs.readFile(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip");
+        let buffer = await read.then((err, buffer) => {
+            if (err) throw err;
+            console.log("Return buffer.");
+            return buffer;
+        });
+        console.log(JSON.stringify(buffer));
+        portals[ws.portalId].data = buffer;
+    })();
 }
 
 function changeActivationStatus(ws, path, isActive) {
@@ -371,34 +372,36 @@ function changeActivationStatus(ws, path, isActive) {
 
 function createRandomColor() {
     let h = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
-    var color = tinycolor("hsl(" + Math.floor(h * 360) + ", 5%, 95%)");
+    let color = tinycolor("hsl(" + Math.floor(h * 360) + ", 5%, 95%)");
     return color.toHexString();
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {
-    let portalId = data.portalId;
-    let userId = data.userId;
-    this.portalId = portalId;
-    this.userId = userId;
-    if (typeof portals[portalId] === 'undefined') { // create
-        portals[portalId] = {
-            id: portalId,
+    let isCreate = false;
+    this.portalId = data.portalId;
+    this.userId = data.userId;
+    if (typeof portals[this.portalId] === 'undefined') { // create
+        isCreate = true;
+        portals[this.portalId] = {
+            id: this.portalId,
             files: {},
-            users: {}
+            users: {},
+            data: {}
         };
     }
-    portals[portalId].users[userId] = {
-        id: userId,
+    portals[this.portalId].users[this.userId] = {
+        id: this.userId,
         name: data.name,
         color: createRandomColor()
     };
     broadcastMsg(JSON.stringify({
         a: Constant.META,
         type: Constant.TYPE_USER_JOINED,
-        user: portals[portalId].users[userId]
-    }), this, false);
-    portals[portalId].users[userId].ws = this;
-    console.log('Session ' + portalId + ' adds ' + userId + '\n');
+        user: portals[this.portalId].users[this.userId]
+    }), this);
+    portals[this.portalId].users[this.userId].ws = this;
+    console.log('Session ' + this.portalId + ' adds ' + this.userId + '\n');
+    return isCreate;
 };
 
 WebSocket.prototype.getId = function () {
@@ -406,9 +409,9 @@ WebSocket.prototype.getId = function () {
 };
 
 function promisify(api) {
-    return function (...args) {
-        return new Promise(function (resolve, reject) {
-            api(...args, function (err, response) {
+    return (...args) => {
+        return new Promise((resolve, reject) => {
+            api(...args, (err, response) => {
                 if (err) return reject(err);
                 resolve(response);
             });

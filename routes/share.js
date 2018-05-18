@@ -5,10 +5,11 @@ let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
 let Constant = require("../public/javascripts/DataConstants");
 let tinycolor = require("tinycolor2");
-let yauzl = require("yauzl");
+let unzip = require("unzip");
 let JSZip = require("jszip");
+let streamifier = require('streamifier/lib');
 const fs = require('fs-extra');
-const klawSync = require('klaw-sync')
+const klawSync = require('klaw-sync');
 
 'use strict';
 
@@ -106,11 +107,8 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_INIT:
-                // create or join a session
                 let isCreate = ws.createOrJoinSession(data);
-                if (!isCreate) {
-                    makeZip(ws);
-                }
+
                 let tempUsers = {};
                 Object.keys(portals[ws.portalId].users).forEach((userId) => {
                     tempUsers[userId] = {
@@ -119,13 +117,21 @@ function judgeType(ws, msg, stream) {
                         color: portals[ws.portalId].users[userId].color
                     };
                 });
-                ws.send(JSON.stringify({
+
+                let res = {
                     a: Constant.META,
                     type: Constant.TYPE_INIT,
                     files: portals[ws.portalId].files,
-                    users: tempUsers,
-                    data: isCreate ? null : portals[ws.portalId].data
-                }));
+                    users: tempUsers
+                };
+
+                if (isCreate) {
+                    ws.send(JSON.stringify(res));
+                } else {
+                    // create or join a session
+                    makeZipAndSend(ws, res);
+                }
+
                 return;
 
             /* ===============================================================
@@ -278,25 +284,9 @@ function judgeType(ws, msg, stream) {
         broadcastMsg(JSON.stringify(data), ws, willBroadcastToAll);
 
     } else if (data.type === 'Buffer') {
-        let yauzlFromBuffer = promisify(yauzl.fromBuffer);
         try {
-            (async () => {
-                let zipfile = await yauzlFromBuffer(Buffer.from(data.data), {lazyEntries: true});
-                console.log("Number of entries: ", zipfile.entryCount);
-                let openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
-                let portalDir = Constant.DIR_PORTAL_ROOT + ws.portalId;
-                zipfile.readEntry();
-                zipfile.on("entry", async (entry) => {
-                    console.log("Found file: ", entry.fileName);
-                    let stream = await openReadStream(entry);
-                    stream.on("data", (data) => {
-                        fs.outputFileSync(portalDir + "/" + entry.fileName, data);
-                        console.log("Write file to specific portal folder.\n");
-                    }).on("end", () => {
-                        zipfile.readEntry();
-                    });
-                }).on("end", () => console.log("Finish unzip process."));
-            })();
+            streamifier.createReadStream(Buffer.from(data.data))
+                .pipe(unzip.Extract({path: Constant.DIR_PORTAL_ROOT + ws.portalId}));
         } catch (err) {
             console.log("Errors occur:" + err);
         }
@@ -323,33 +313,24 @@ function broadcastMsgToSpecificClient(msg, socket) {
     }
 }
 
-function makeZip(ws) {
+function makeZipAndSend(ws, data) {
     let zip = new JSZip();
+    let root = Constant.DIR_PORTAL_ROOT + ws.portalId;
+    const paths = klawSync(root);
 
-    (async () => {
-        let root = Constant.DIR_PORTAL_ROOT + ws.portalId;
+    paths.forEach(item => {
+        zip.file(item.path.replace(Constant.DIR_PORTAL_ROOT + ws.portalId, ""), fs.readFileSync(item.path));
+        console.log("Add new file to zip.");
+    });
 
-        console.log("before klaw");
-        const paths = klawSync(root);
-        paths.forEach(item => {
-            zip.file(item.path.replace(Constant.DIR_PORTAL_ROOT + ws.portalId, ""), fs.readFileSync(item.path));
+    let stream = zip.generateNodeStream({type: 'nodebuffer', streamFiles: true});
+    stream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip"))
+        .on('finish', () => {
+            fs.readFile(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip", (err, buffer) => {
+                ws.send(buffer);
+                ws.send(JSON.stringify(data));
+            });
         });
-        console.log("Finished zip process.");
-
-        let stream = zip.generateNodeStream({type: 'nodebuffer', streamFiles: true});
-        stream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip"))
-        (await stream.on('finish')).then(() => console.log("Out zip is written."));
-        console.log("ready to return");
-
-        let read = await fs.readFile(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip");
-        let buffer = await read.then((err, buffer) => {
-            if (err) throw err;
-            console.log("Return buffer.");
-            return buffer;
-        });
-        console.log(JSON.stringify(buffer));
-        portals[ws.portalId].data = buffer;
-    })();
 }
 
 function changeActivationStatus(ws, path, isActive) {

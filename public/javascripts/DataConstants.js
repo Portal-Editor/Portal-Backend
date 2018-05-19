@@ -14,7 +14,13 @@ let Constants = {
 
     DIR_PORTAL_ROOT: "/root/kevinz/portals/",
 
-    GOLDEN_RATIO_CONJUGATE: 0.618033988749895
+    GOLDEN_RATIO_CONJUGATE: 0.618033988749895,
+
+    ERROR_USERID_DUPLICATION: {
+        eid: "0001",
+        error: "USER_ID_DUPLICATION",
+        msg: "There are several users with same userId."
+    }
 };
 
 module.exports = Constants;

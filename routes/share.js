@@ -109,6 +109,11 @@ function judgeType(ws, msg, stream) {
             case Constant.TYPE_INIT:
                 let isCreate = ws.createOrJoinSession(data);
 
+                if (isCreate === -1) {
+                    ws.send(Constant.ERROR_USERID_DUPLICATION);
+                    return;
+                }
+
                 let tempUsers = {};
                 Object.keys(portals[ws.portalId].users).forEach((userId) => {
                     tempUsers[userId] = {
@@ -327,7 +332,7 @@ function makeZipAndSend(ws, data) {
 
     paths.forEach(item =>
         zip.file(item.path.replace(root, ""),
-        fs.readFileSync(item.path)));
+            fs.readFileSync(item.path)));
 
     zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
         data.data = arr;
@@ -370,6 +375,10 @@ WebSocket.prototype.createOrJoinSession = function (data) {
             files: {},
             users: {}
         };
+    } else {
+        Object.keys(portals[ws.portalId].users).forEach((userId) => {
+            if (userId === this.userId) return -1;
+        });
     }
     portals[this.portalId].users[this.userId] = {
         id: this.userId,

@@ -325,10 +325,9 @@ function makeZipAndSend(ws, data) {
     let root = Constant.DIR_PORTAL_ROOT + ws.portalId;
     const paths = klawSync(root);
 
-    paths.forEach(item => {
-        zip.file(item.path.replace(Constant.DIR_PORTAL_ROOT + ws.portalId, ""), fs.readFileSync(item.path));
-        console.log("Add new file to zip.");
-    });
+    paths.forEach(item =>
+        zip.file(item.path.replace(root, ""),
+        fs.readFileSync(item.path)));
 
     zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
         data.data = arr;
@@ -369,13 +368,12 @@ WebSocket.prototype.createOrJoinSession = function (data) {
         portals[this.portalId] = {
             id: this.portalId,
             files: {},
-            users: {},
-            data: {}
+            users: {}
         };
     }
     portals[this.portalId].users[this.userId] = {
         id: this.userId,
-        name: data.name,
+        name: data.name || this.userId,
         color: createRandomColor()
     };
     broadcastMsg(JSON.stringify({

@@ -282,6 +282,9 @@ function judgeType(ws, msg, stream) {
         broadcastMsg(JSON.stringify(data), ws, willBroadcastToAll);
 
     } else if (data.type === 'Buffer') {
+        if (!ws.portalId) {
+            ws.send("No portal created.");
+        }
         try {
             streamifier.createReadStream(Buffer.from(data.data))
                 .pipe(unzip.Extract({path: Constant.DIR_PORTAL_ROOT + ws.portalId}));

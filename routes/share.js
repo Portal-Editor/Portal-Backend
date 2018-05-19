@@ -10,6 +10,7 @@ let JSZip = require("jszip");
 let streamifier = require('streamifier/lib');
 const fs = require('fs-extra');
 const klawSync = require('klaw-sync');
+const uuid = require('uuid/v1');
 
 'use strict';
 
@@ -127,7 +128,8 @@ function judgeType(ws, msg, stream) {
                     a: Constant.META,
                     type: Constant.TYPE_INIT,
                     files: portals[ws.portalId].files,
-                    users: tempUsers
+                    users: tempUsers,
+                    portalId: ws.portalId
                 };
 
                 if (isCreate) {
@@ -288,9 +290,6 @@ function judgeType(ws, msg, stream) {
     } else if (data.type === 'Buffer') {
         if (!ws.portalId) {
             console.log("No portal created.");
-        } else {
-            console.log(ws.portalId + "\n");
-            console.log(data.data.length);
         }
         try {
             streamifier.createReadStream(Buffer.from(data.data))
@@ -366,7 +365,7 @@ function createRandomColor() {
 
 WebSocket.prototype.createOrJoinSession = function (data) {
     let isCreate = false;
-    this.portalId = data.portalId;
+    this.portalId = data.portalId || uuid();
     this.userId = data.userId;
     if (typeof portals[this.portalId] === 'undefined') { // create
         isCreate = true;

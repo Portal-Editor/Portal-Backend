@@ -293,7 +293,7 @@ function judgeType(ws, msg, stream) {
         } catch (err) {
             console.log("Errors occur:" + err);
         }
-    } else if (data.a === 'DEBUG') {
+    } else if (data.a === Constant.DEBUG) {
         if (data.type === 'rc') {
             ws.send(createRandomColor());
         }
@@ -346,7 +346,8 @@ function changeActivationStatus(ws, path, isActive) {
             return;
         }
     } else {
-        portals[ws.portalId].files[path].activeUser.splice(portals[ws.portalId].files[path].activeUser.indexOf(ws.userId), 1);
+        portals[ws.portalId].files[path].activeUser
+            .splice(portals[ws.portalId].files[path].activeUser.indexOf(ws.userId), 1);
         portals[ws.portalId].users[ws.userId].focusOn = null;
     }
     console.log('Occupier' + ws.userId + ' has changed status to ' + isActive ?
@@ -355,9 +356,7 @@ function changeActivationStatus(ws, path, isActive) {
 
 function createRandomColor() {
     let h = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
-    console.log(h);
-    let color = "hsl(" + Math.floor(h * 360) + ", 50%, 95%)";
-    console.log(color);
+    let color = `hsl(${Math.floor(h * 360)}, 50%, 60%`;
     return tinycolor(color).toHexString();
 }
 
@@ -392,17 +391,6 @@ WebSocket.prototype.createOrJoinSession = function (data) {
 WebSocket.prototype.getId = function () {
     return this.upgradeReq.headers['sec-websocket-key'];
 };
-
-function promisify(api) {
-    return (...args) => {
-        return new Promise((resolve, reject) => {
-            api(...args, (err, response) => {
-                if (err) return reject(err);
-                resolve(response);
-            });
-        });
-    };
-}
 
 const router = express.Router();
 

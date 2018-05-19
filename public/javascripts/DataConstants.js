@@ -1,5 +1,6 @@
 let Constants = {
     META: "meta",
+    DEBUG: "DEBUG",
     TYPE_INIT: "init",
     TYPE_CLOSE_FILE: "closeFile",
     TYPE_OPEN_FILE: "openFile",

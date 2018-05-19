@@ -323,14 +323,10 @@ function makeZipAndSend(ws, data) {
         console.log("Add new file to zip.");
     });
 
-    let stream = zip.generateNodeStream({type: 'nodebuffer', streamFiles: true});
-    stream.pipe(fs.createWriteStream(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip"))
-        .on('finish', () => {
-            fs.readFile(Constant.DIR_PORTAL_ROOT + ws.portalId + "_" + ws.userId + ".zip", (err, buffer) => {
-                ws.send(buffer);
-                ws.send(JSON.stringify(data));
-            });
-        });
+    zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
+        data.data = arr;
+        ws.send(JSON.stringify(data));
+    });
 }
 
 function changeActivationStatus(ws, path, isActive) {

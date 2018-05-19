@@ -11,6 +11,7 @@ let streamifier = require('streamifier/lib');
 const fs = require('fs-extra');
 const klawSync = require('klaw-sync');
 const uuid = require('uuid/v1');
+const request = require('request');
 
 'use strict';
 

@@ -375,7 +375,7 @@ WebSocket.prototype.createOrJoinSession = function (data) {
             users: {}
         };
     } else {
-        Object.keys(portals[ws.portalId].users).forEach((userId) => {
+        Object.keys(portals[this.portalId].users).forEach((userId) => {
             if (userId === this.userId) return -1;
         });
     }

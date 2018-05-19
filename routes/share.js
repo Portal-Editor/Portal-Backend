@@ -128,7 +128,6 @@ function judgeType(ws, msg, stream) {
                 if (isCreate) {
                     ws.send(JSON.stringify(res));
                 } else {
-                    // create or join a session
                     makeZipAndSend(ws, res);
                 }
 
@@ -226,7 +225,6 @@ function judgeType(ws, msg, stream) {
                 files[data.path].cursors[ws.userId] = {
                     row: 0,
                     column: 0,
-                    // TODO: random color
                     color: users[ws.userId].color
                 };
                 console.log(data.path + ' added\n');
@@ -290,6 +288,10 @@ function judgeType(ws, msg, stream) {
         } catch (err) {
             console.log("Errors occur:" + err);
         }
+    } else if (data.a === 'DEBUG') {
+        if (data.type === 'rc') {
+            ws.send(createRandomColor());
+        }
     } else {
         // OT
         console.log(JSON.stringify(data));
@@ -348,8 +350,10 @@ function changeActivationStatus(ws, path, isActive) {
 
 function createRandomColor() {
     let h = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
-    let color = tinycolor("hsl(" + Math.floor(h * 360) + ", 5%, 95%)");
-    return color.toHexString();
+    console.log(h);
+    let color = "hsl(" + Math.floor(h * 360) + ", 50%, 95%)";
+    console.log(color);
+    return tinycolor(color).toHexString();
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {

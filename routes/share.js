@@ -92,7 +92,7 @@ function judgeType(ws, msg, stream) {
         let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
         let file = data.path ? files[data.path] : null;
-        var willBroadcastToAll = false;
+        let willBroadcastToAll = false;
 
         switch (data.type) {
 
@@ -247,7 +247,6 @@ function judgeType(ws, msg, stream) {
                     return;
                 }
 
-                // TODO: Refactor
                 let index = file.activeUser.indexOf(ws.userId);
                 if (index !== -1) {
                     file.activeUser.splice(index, 1);
@@ -283,7 +282,10 @@ function judgeType(ws, msg, stream) {
 
     } else if (data.type === 'Buffer') {
         if (!ws.portalId) {
-            ws.send("No portal created.");
+            console.log("No portal created.");
+        } else {
+            console.log(ws.portalId + "\n");
+            console.log(data.data.length);
         }
         try {
             streamifier.createReadStream(Buffer.from(data.data))

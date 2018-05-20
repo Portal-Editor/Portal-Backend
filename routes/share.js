@@ -422,7 +422,7 @@ function makeZipAndSend(ws, data) {
     const paths = klawSync(root);
 
     paths.forEach(item =>
-        zip.file(item.path.replace(root, ""), fs.readFileSync(item.path)));
+        zip.file(item.path.replace(root + "/", ""), fs.readFileSync(item.path)));
 
     zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
         data.data = arr;
@@ -449,8 +449,9 @@ function changeActivationStatus(ws, path, isActive) {
 }
 
 function createRandomColor() {
-    let h = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
-    let color = `hsl(${Math.floor(h * 360)}, 50%, 60%`;
+    let rand = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
+    let h = Math.floor(rand * 360);
+    let color = `hsl(${h}, 50%, 60%)`;
     return tinycolor(color).toHexString();
 }
 

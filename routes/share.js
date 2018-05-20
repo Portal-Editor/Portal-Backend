@@ -298,6 +298,7 @@ function judgeType(ws, msg, stream) {
                 if (data.isFolder) {
                     let occupied = false;
                     let paths = [];
+                    if (!fs.existsSync(root + data.path)) return;
                     klawSync(root + data.path).every(item => {
                         if (!isAbleToDelete(files[item.path.replace(root, "")])) {
                             occupied = true;

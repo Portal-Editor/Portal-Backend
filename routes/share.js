@@ -293,8 +293,8 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_DELETE_FILE:
-                let isAbleToDelete = (file) => !(file.occupier.length > 1 ||
-                    (file.occupier.length === 1 && file.occupier.indexOf(ws.userId) === -1));
+                let isAbleToDelete = (file) => !(file && file.occupier.length > 1 ||
+                    file && file.occupier.length === 1 && file.occupier.indexOf(ws.userId) === -1);
                 if (data.isFolder) {
                     let occupied = false;
                     let paths = [];
@@ -316,7 +316,7 @@ function judgeType(ws, msg, stream) {
                         console.log("Unable to remove directory " + data.path + ".");
                         return;
                     }
-                } else if (file && !isAbleToDelete(file)) {
+                } else if (!isAbleToDelete(file)) {
                     data.reject = Constant.ERROR_FILE_OCCUPIED;
                     data.type = Constant.TYPE_CREATE_FILE;
                     data.buffer = fs.readFileSync(root + data.path);

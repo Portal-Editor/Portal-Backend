@@ -31,7 +31,21 @@ router.get("/callback", (req, res) => {
     request(options, (_err, _res, _body) => {
         if (_err) throw new Error(_err);
         let token = JSON.parse(_body).access_token;
-        res.send(token);
+        let options = {
+            method: 'GET',
+            url: 'https://api.github.com/user',
+            qs: {
+                access_token: token
+            },
+            headers: {
+                'cache-control': 'no-cache',
+                'User-Agent': 'Portal'
+            }
+        };
+        request(options, (__err, __res, __body) => {
+            console.log(JSON.parse(__body));
+            res.send(__body);
+        })
     });
 
 });

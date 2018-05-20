@@ -22,6 +22,11 @@ let Constants = {
         eid: "0001",
         error: "USER_ID_DUPLICATION",
         msg: "There are several users with same userId."
+    },
+    ERROR_FILE_OCCUPIED: {
+        eid: "0002",
+        error: "FILE_IS_OCCUPIED",
+        msg: "This file is used by multiple users."
     }
 };
 

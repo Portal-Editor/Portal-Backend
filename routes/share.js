@@ -294,9 +294,13 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_DELETE_FILE:
-                if (file.occupier.indexOf(ws.userId) !== -1) {
-                    file.occupier.splice(file.occupier.indexOf(ws.userId), 1);
+                if (file.occupier.length > 1 ||
+                    (file.occupier.length === 1 && file.occupier.indexOf(ws.userId) === -1)) {
+                    ws.send(JSON.stringify(Constant.ERROR_FILE_OCCUPIED));
+                    return;
                 }
+                if (file.occupier.length) file = null;
+                fs.removeSync(root + data.path);
                 data.userId = ws.userId;
                 break;
 

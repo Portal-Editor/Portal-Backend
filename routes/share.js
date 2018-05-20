@@ -273,7 +273,8 @@ function judgeType(ws, msg, stream) {
                         portals[ws.portalId].pendings[data.path] = null;
                     }
                     fs.outputFile(root + data.path,
-                        typeof data.buffer ? (data.buffer === "string" ? data.buffer : Buffer.from(data.buffer)) : "",
+                        typeof data.buffer ?
+                            (data.buffer === "string" ? data.buffer : Buffer.from(data.buffer)) : "",
                         {'flag': 'wx'}, err => {
                             if (err && err.code !== 'EEXIST') console.log(err);
                         });
@@ -292,6 +293,9 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_DELETE_FILE:
+                if (file.occupier) {
+                    file.occupier.splice(file.occupier.indexOf(ws.userId), 1);
+                }
                 data.userId = ws.userId;
                 break;
 

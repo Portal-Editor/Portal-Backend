@@ -205,7 +205,7 @@ function judgeType(ws, msg, stream) {
                 });
                 if (shouldChoke) return;
                 else {
-                    updateFileStatus(data.path, data.grammar);
+                    updateFileStatus(ws, data.path, data.grammar);
                     break;
                 }
 
@@ -257,7 +257,7 @@ function judgeType(ws, msg, stream) {
             *   - process after the user creating a new file -
             *
             *   Needed:
-            *   { path, data, isFolder, isOpen }
+            *   { path, data, isFolder }
             *
             =============================================================== */
 
@@ -267,14 +267,15 @@ function judgeType(ws, msg, stream) {
                         console.log(err);
                     });
                 } else if (!data.isFolder) {
-                    if (data.isOpen && portals[ws.portalId].pendings[data.path]) {
+                    if (portals[ws.portalId].pendings[data.path]) {
+                        data.isOpen = true;
                         data.grammar = portals[ws.portalId].pendings[data.path].grammar;
-                        updateFileStatus(data.path, data.grammar);
+                        updateFileStatus(ws, data.path, data.grammar);
                         portals[ws.portalId].pendings[data.path] = null;
                     }
                     fs.outputFile(root + data.path,
-                        typeof data.buffer ?
-                            (data.buffer === "string" ? data.buffer : Buffer.from(data.buffer)) : "",
+                        data.buffer ?
+                            (typeof data.buffer === "string" ? data.buffer : Buffer.from(data.buffer)) : "",
                         {'flag': 'wx'}, err => {
                             if (err && err.code !== 'EEXIST') console.log(err);
                         });
@@ -293,7 +294,7 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_DELETE_FILE:
-                if (file.occupier) {
+                if (file.occupier.indexOf(ws.userId) !== -1) {
                     file.occupier.splice(file.occupier.indexOf(ws.userId), 1);
                 }
                 data.userId = ws.userId;
@@ -354,7 +355,7 @@ function broadcastMsgToSpecificClient(msg, socket) {
     }
 }
 
-function updateFileStatus(path, grammar) {
+function updateFileStatus(ws, path, grammar) {
     let files = portals[ws.portalId].files;
     let focus = portals[ws.portalId].users[ws.userId].focusOn;
     if (focus) {

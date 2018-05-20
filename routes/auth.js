@@ -6,8 +6,8 @@ let router = express.Router();
 router.get('/', function (req, res) {
     let dataStr = (new Date()).valueOf();
     let path = "https://github.com/login/oauth/authorize";
-    path += '?client_id=' + Config.GITHUB_CLIENT_ID;
-    path += '&redirect_url=' + Config.GITHUB_REDIRECT_URL;
+    path += '?client_id=' + Config.GithubConfigurations.GITHUB_CLIENT_ID;
+    path += '&redirect_url=' + Config.GithubConfigurations.GITHUB_REDIRECT_URL;
     path += '&state=' + dataStr;
     res.redirect(path);
 });
@@ -18,8 +18,8 @@ router.get("/callback", (req, res) => {
         method: 'GET',
         url: 'https://github.com/login/oauth/access_token',
         qs: {
-            client_id: Config.GITHUB_CLIENT_ID,
-            client_secret: Config.GITHUB_CLIENT_SECRET,
+            client_id: Config.GithubConfigurations.GITHUB_CLIENT_ID,
+            client_secret: Config.GithubConfigurations.GITHUB_CLIENT_SECRET,
             code: code
         },
         headers: {

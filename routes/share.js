@@ -29,12 +29,9 @@ let share = new ShareDB();
     wss.on('connection', ws => {
         const stream = new WebSocketStream(ws);
 
-        ws.on('message', msg => { // receive text data
-            // try {
+        ws.on('message', msg => {
+            // TODO: Try/catch
             judgeType(ws, msg, stream);
-            // } catch (err) {
-            //     console.log("Errors occur:" + err);
-            // }
         });
 
         ws.on('close', (code, reason) => {
@@ -66,15 +63,14 @@ let share = new ShareDB();
 })();
 
 function logFiles(files) {
-    console.log('current files: ');
-    console.log(files);
-    console.log('\n');
+    console.log(`INFO: Current files structure: ${files}\n`);
 }
 
 function judgeType(ws, msg, stream) {
     let data = JSON.parse(msg);
     if (data.a === Constant.META) {
-        console.log('Received meta data:' + JSON.stringify(data) + '\n');
+        console.log(`INFO: Received meta data. Type - ${data.type}.`);
+        console.log(`Data - ${JSON.stringify(data)}\n`);
         let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
         let file = data.path ? files[data.path] : null;
@@ -98,6 +94,7 @@ function judgeType(ws, msg, stream) {
 
                 if (isCreate === -1) {
                     ws.send(Constant.ERROR_USERID_DUPLICATION);
+                    console.log(`ERROR: Init failed, because user id ${ws.userId} is existed.`);
                     return;
                 }
 
@@ -110,18 +107,16 @@ function judgeType(ws, msg, stream) {
                     };
                 });
 
-                let res = {
-                    a: Constant.META,
-                    type: Constant.TYPE_INIT,
-                    files: portals[ws.portalId].files,
-                    users: tempUsers,
-                    portalId: ws.portalId
-                };
+                data.users = tempUsers;
+                data.files = portals[ws.portalId].files;
+                data.portalId = ws.portalId;
 
                 if (isCreate) {
-                    ws.send(JSON.stringify(res));
+                    ws.send(JSON.stringify(data));
+                    console.log(`INFO: User ${ws.userId} creates a new portal successfully.`);
                 } else {
-                    makeZipAndSend(ws, res);
+                    makeZipAndSend(ws, data);
+                    console.log(`INFO: User ${ws.userId} joins in portal ${ws.portalId}.`);
                 }
 
                 return;
@@ -140,12 +135,12 @@ function judgeType(ws, msg, stream) {
                 let cursor = file.cursors[ws.userId];
                 cursor.row = data.cursor.row;
                 cursor.column = data.cursor.column;
-                console.log('Ready to broadcast ' + ws.userId + '\'s cursor');
+                console.log(`INFO: Ready to broadcast cursor of ${ws.userId}.`);
 
                 data.userId = ws.userId;
                 file.occupier.forEach(userId => {
                     if (userId !== ws.userId) {
-                        console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + userId);
+                        console.log(`INFO: broadcasting cursor ${userId} successfully.`);
                         broadcastMsgToSpecificClient(msg, ws, ws.userId);
                     }
                 });
@@ -179,7 +174,7 @@ function judgeType(ws, msg, stream) {
             case Constant.TYPE_CHANGE_GRAMMAR:
                 if (file.grammar !== data.grammar) {
                     file.grammar = data.grammar;
-                    console.log('User ' + ws.userId + ' has changed grammar to ' + data.grammar);
+                    console.log(`INFO: User ${ws.userId} has changed grammar of file ${data.path} to ${data.grammar}.`);
                 }
                 break;
 
@@ -194,19 +189,19 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_OPEN_FILE:
-                let shouldChoke = false;
+                if (!data.path) {
+                    console.log(`ERROR: A path of file is necessary but not received.`);
+                    return;
+                }
 
                 if (!fs.existsSync(root + data.path)) {
                     portals[ws.portalId].pendings[data.path] = {
                         grammar: data.grammar
                     };
-                    shouldChoke = true;
+                    return;
                 }
-                if (shouldChoke) return;
-                else {
-                    updateFileStatus(ws, data.path, data.grammar);
-                    break;
-                }
+                updateFileStatus(ws, data.path, data.grammar);
+                break;
 
             /* ===============================================================
             *
@@ -219,8 +214,11 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_CLOSE_FILE:
-                if (!file.path) {
-                    console.log(data.path + ' is not an allowed path.');
+                if (!data.path) {
+                    console.log(`ERROR: A path of file is necessary but not received.`);
+                    return;
+                } else if (!file) {
+                    console.log(`ERROR: File ${data.path} can't be closed because it is not active.`);
                     return;
                 }
 
@@ -232,23 +230,24 @@ function judgeType(ws, msg, stream) {
                 file.cursors[ws.userId] = null;
                 data.userId = ws.userId;
 
-                broadcastMsg(JSON.stringify(data), ws); // broadcast close info first
+                /* Broadcast close file event to others. */
 
-                if (!file.occupier.length) {
-                    file = null;
-                    console.log(data.path + ' removed.');
-                    data = {
-                        a: "meta",
-                        type: Constant.TYPE_OCCUPIER_CLEARED,
-                        path: data.path
-                    };
-                    willBroadcastToAll = true;
-                    logFiles(files);
-                    break;
-                } else {
-                    logFiles(files);
-                    return;
-                }
+                broadcastMsg(JSON.stringify(data), ws);
+                if (file.occupier.length) return;
+
+                /* Ready to broadcast OCCUPIER_CLEARED if occupier list is clear. */
+
+                file = null;
+                data = {
+                    a: Constant.META,
+                    type: Constant.TYPE_OCCUPIER_CLEARED,
+                    path: data.path
+                };
+                logFiles(files);
+                willBroadcastToAll = true;
+                console.log(`INFO: File ${data.path} is removed from active files list.`);
+                break;
+
 
             /* ===============================================================
             *
@@ -256,7 +255,7 @@ function judgeType(ws, msg, stream) {
             *   - process after the user creating a new file -
             *
             *   Needed:
-            *   { path, data, isFolder }
+            *   { path, data, [isFolder] }
             *
             =============================================================== */
 
@@ -293,39 +292,44 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_DELETE_FILE:
+                if (!data.path) {
+                    console.log(`ERROR: A path of file is necessary but not received.`);
+                    return;
+                }
+
                 let isAbleToDelete = (file) => !(file && file.occupier.length > 1 ||
                     file && file.occupier.length === 1 && file.occupier.indexOf(ws.userId) === -1);
+
                 if (data.isFolder) {
-                    let occupied = false;
+                    let isOccupied = false;
                     let paths = [];
                     if (!fs.existsSync(root + data.path)) return;
                     klawSync(root + data.path).every(item => {
-                        if (!isAbleToDelete(files[item.path.replace(root, "")])) {
-                            occupied = true;
-                            return false;
-                        } else {
+                        if (isAbleToDelete(files[item.path.replace(root, "")]))
                             paths.push(item.path.replace(root, ""));
+                        else {
+                            isOccupied = true;
+                            return false;
                         }
                     });
-                    if (!occupied) {
-                        // delete whole folder, remove files in logic
+                    if (isOccupied) {
+                        ws.send(JSON.stringify(Constant.ERROR_FOLDER_OCCUPIED));
+                        console.log(`ERROR: Unable to remove directory ${data.path} because it is occupied.`);
+                        return;
+                    } else {
                         fs.removeSync(root + data.path);
                         paths.forEach(item => files[item] = null);
-                        console.log("Successfully removed directory " + data.path + ".");
-                    } else {
-                        ws.send(JSON.stringify(Constant.ERROR_FOLDER_OCCUPIED));
-                        console.log("Unable to remove directory " + data.path + ".");
-                        return;
+                        console.log(`INFO: Successfully removed directory ${data.path}.`);
                     }
+                } else if (isAbleToDelete(file)) {
+                    if (file && file.occupier.length) file = null;
+                    fs.removeSync(root + data.path);
                 } else if (!isAbleToDelete(file)) {
-                    data.reject = Constant.ERROR_FILE_OCCUPIED;
                     data.type = Constant.TYPE_CREATE_FILE;
+                    data.reject = Constant.ERROR_FILE_OCCUPIED;
                     data.buffer = fs.readFileSync(root + data.path);
                     ws.send(JSON.stringify(data));
                     return;
-                } else {
-                    if (file && file.occupier.length) file = null;
-                    fs.removeSync(root + data.path);
                 }
                 data.userId = ws.userId;
                 break;
@@ -333,10 +337,10 @@ function judgeType(ws, msg, stream) {
             /* ===============================================================
             *
             *   Save file
-            *   - process after the user creating a new file -
+            *   - process after the user saving the file -
             *
             *   Needed:
-            *   { path, data, isFolder }
+            *   { path }
             *
             =============================================================== */
 
@@ -344,27 +348,21 @@ function judgeType(ws, msg, stream) {
                 data.userId = ws.userId;
                 break;
         }
-        // other meta changes: cursor position, text selection
-        // and open/save/close file
         broadcastMsg(JSON.stringify(data), ws, willBroadcastToAll);
 
     } else if (data.type === 'Buffer') {
-        if (!ws.portalId) {
-            console.log("No portal created.");
-        }
-        try {
-            streamifier.createReadStream(Buffer.from(data.data))
-                .pipe(unzip.Extract({path: Constant.DIR_PORTAL_ROOT + ws.portalId}));
-        } catch (err) {
-            console.log("Errors occur:" + err);
-        }
+        console.log("INFO: Successfully receive zip of files. Buffer length: " + data.data.length);
+        saveFileToServer(ws.portalId, data.data);
+        console.log("INFO: Save files to server.");
+
+
     } else if (data.a === Constant.DEBUG) {
-        if (data.type === 'rc') { // random color
+        if (data.type === 'rc') // random color
             ws.send(createRandomColor());
-        }
+
     } else {
         // OT
-        console.log(JSON.stringify(data));
+        console.log("INFO: OT is processed - " + JSON.stringify(data));
         stream.push(data);
     }
 }
@@ -380,7 +378,8 @@ function broadcastMsg(msg, ws, isToAll = false) {
 
 function broadcastMsgToSpecificClient(msg, socket) {
     if (socket.readyState === WebSocket.OPEN) {
-        console.log('Broadcasting msg to ' + socket.userId + '\n' + msg + '\n');
+        console.log(`INFO: Broadcasting message to ${socket.userId}.`);
+        console.log(`The message is: \n${msg}.\n`);
         setTimeout(() => socket.send(msg), 0);
     }
 }
@@ -412,54 +411,75 @@ function updateFileStatus(ws, path, grammar) {
         column: 0,
         color: portals[ws.portalId].users[ws.userId].color
     };
-    console.log(path + ' added\n');
+    console.log(`INFO: Status of file ${path} is updated.`);
     logFiles(files);
 }
 
 function makeZipAndSend(ws, data) {
     let zip = new JSZip();
-    let root = Constant.DIR_PORTAL_ROOT + ws.portalId; // NOTICE: No slash in the end
-    const paths = klawSync(root);
+    let root = Constant.DIR_PORTAL_ROOT + ws.portalId + "/";
+    let paths = klawSync(root);
 
     paths.forEach(item =>
-        zip.file(item.path.replace(root + "/", ""), fs.readFileSync(item.path)));
-
+        zip.file(item.path.replace(root, ""), fs.readFileSync(item.path)));
     zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
         data.data = arr;
         ws.send(JSON.stringify(data));
     });
 }
 
+function saveFileToServer(portalId, data) {
+    if (!portalId) {
+        console.log("ERROR: Files can't be uploaded because no portal is created.");
+        return;
+    }
+    try {
+        streamifier.createReadStream(Buffer.from(data))
+            .pipe(unzip.Extract({path: Constant.DIR_PORTAL_ROOT + portalId}));
+    } catch (err) {
+        console.log("ERROR: Errors occur during uploading files - " + err);
+    }
+}
+
 function changeActivationStatus(ws, path, isActive) {
-    if (isActive) {
-        if (portals[ws.portalId].files[path].activeUser.includes(ws.userId)) {
+    if (isActive)
+        if (portals[ws.portalId].files[path].activeUser.includes(ws.userId))
+            console.log(`ERROR: User ${ws.userId} is already an active user of file ${path}.`);
+        else if (!portals[ws.portalId].files[path].occupier.includes(ws.userId))
+            console.log(`ERROR: User ${ws.userId} is not occupier of file ${path}.`);
+        else {
             portals[ws.portalId].files[path].activeUser.push(ws.userId);
             portals[ws.portalId].users[ws.userId].focusOn = path;
-        } else {
-            console.log("User " + ws.userId + " is not active on file " + path + ".");
-            return;
+            console.log(`INFO: Occupier ${ws.userId} has become an active user of ${path}.`);
         }
-    } else {
-        portals[ws.portalId].files[path].activeUser
-            .splice(portals[ws.portalId].files[path].activeUser.indexOf(ws.userId), 1);
-        portals[ws.portalId].users[ws.userId].focusOn = null;
+    else {
+        if (!portals[ws.portalId].files[path].activeUser.includes(ws.userId))
+            console.log(`ERROR: User ${ws.userId} is not an active user of file ${path}.`);
+        else if (!portals[ws.portalId].files[path].occupier.includes(ws.userId))
+            console.log(`ERROR: User ${ws.userId} is not occupier of file ${path}.`);
+        else {
+            portals[ws.portalId].files[path].activeUser
+                .splice(portals[ws.portalId].files[path].activeUser.indexOf(ws.userId), 1);
+            portals[ws.portalId].users[ws.userId].focusOn = null;
+            console.log(`INFO: Occupier ${ws.userId} is not active on ${path}.`);
+        }
     }
-    console.log('Occupier' + ws.userId + ' has changed status to ' + isActive ?
-        "active" : "inactive" + " of " + path);
 }
 
 function createRandomColor() {
     let rand = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
     let h = Math.floor(rand * 360);
-    let color = `hsl(${h}, 50%, 60%)`;
-    return tinycolor(color).toHexString();
+    return tinycolor(`hsl(${h}, 50%, 60%)`).toHexString();
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {
     let isCreate = false;
     this.portalId = data.portalId || uuid();
     this.userId = data.userId;
-    if (typeof portals[this.portalId] === 'undefined') { // create
+
+    /* Initialize a new portal if portal with specific id is not existed. */
+
+    if (typeof portals[this.portalId] === 'undefined') {
         isCreate = true;
         portals[this.portalId] = {
             id: this.portalId,
@@ -468,9 +488,9 @@ WebSocket.prototype.createOrJoinSession = function (data) {
             pendings: {}
         };
     } else {
-        Object.keys(portals[this.portalId].users).forEach((userId) => {
+        for (let userId in Object.keys(portals[this.portalId].users)) {
             if (userId === this.userId) return -1;
-        });
+        }
     }
     portals[this.portalId].users[this.userId] = {
         id: this.userId,
@@ -483,7 +503,7 @@ WebSocket.prototype.createOrJoinSession = function (data) {
         user: portals[this.portalId].users[this.userId]
     }), this);
     portals[this.portalId].users[this.userId].ws = this;
-    console.log('Session ' + this.portalId + ' adds ' + this.userId + '\n');
+    console.log(`Portal ${this.portalId} adds a new user ${this.userId}.\n`);
     return isCreate;
 };
 

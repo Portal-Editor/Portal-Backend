@@ -3,7 +3,8 @@ let ShareDB = require('sharedb');
 let otText = require('ot-text');
 let WebSocket = require('ws');
 let WebSocketStream = require('../public/javascripts/WebSocketStream');
-let Constant = require("../public/javascripts/DataConstants");
+const Constant = require("../public/javascripts/DataConstants");
+const Config = require("../public/javascripts/Config");
 let tinycolor = require("tinycolor2");
 let unzip = require("unzip");
 let JSZip = require("jszip");
@@ -11,41 +12,24 @@ let streamifier = require('streamifier/lib');
 const fs = require('fs-extra');
 const klawSync = require('klaw-sync');
 const uuid = require('uuid/v1');
-const request = require('request');
 
 'use strict';
 
 ShareDB.types.register(otText.type);
 
-var portals = [];
+let portals = [];
+let share = new ShareDB();
 
-const share = new ShareDB();
-
-startServer();
-
-function startServer() {
+(function startServer() {
     // Create a WebSocket Server
     // and connect any incoming WebSocket connection to ShareDB
-    const wss = new WebSocket.Server({
-        port: 9090,
-        perMessageDeflate: {
-            zlibDeflateOptions: { // See zlib defaults.
-                chunkSize: 1024,
-                memLevel: 7,
-                level: 3,
-            },
-            zlibInflateOptions: {
-                chunkSize: 10 * 1024
-            },
-            concurrencyLimit: 10,
-            threshold: 1024
-        }
-    }, () => console.log('WebSocket Server Created.'));
+    const wss = new WebSocket.Server(Config.WebSocketServerConfigurations,
+        () => console.log('WebSocket Server Created.'));
 
-    wss.on('connection', (ws) => {
+    wss.on('connection', ws => {
         const stream = new WebSocketStream(ws);
 
-        ws.on('message', (msg) => { // receive text data
+        ws.on('message', msg => { // receive text data
             // try {
             judgeType(ws, msg, stream);
             // } catch (err) {
@@ -79,7 +63,7 @@ function startServer() {
     process.on('SIGINT', () => {
         wss.close(() => process.exit());
     });
-}
+})();
 
 function logFiles(files) {
     console.log('current files: ');
@@ -94,6 +78,7 @@ function judgeType(ws, msg, stream) {
         let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
         let file = data.path ? files[data.path] : null;
+        let root = Constant.DIR_PORTAL_ROOT + ws.portalId + '/';
         let willBroadcastToAll = false;
 
         switch (data.type) {
@@ -117,7 +102,7 @@ function judgeType(ws, msg, stream) {
                 }
 
                 let tempUsers = {};
-                Object.keys(portals[ws.portalId].users).forEach((userId) => {
+                Object.keys(portals[ws.portalId].users).forEach(userId => {
                     tempUsers[userId] = {
                         id: userId,
                         name: portals[ws.portalId].users[userId].name,
@@ -158,7 +143,7 @@ function judgeType(ws, msg, stream) {
                 console.log('Ready to broadcast ' + ws.userId + '\'s cursor');
 
                 data.userId = ws.userId;
-                file.occupier.forEach((userId) => {
+                file.occupier.forEach(userId => {
                     if (userId !== ws.userId) {
                         console.log('Broadcasting ' + JSON.stringify(cursor) + ' to ' + userId);
                         broadcastMsgToSpecificClient(msg, ws, ws.userId);
@@ -197,7 +182,6 @@ function judgeType(ws, msg, stream) {
                     console.log('User ' + ws.userId + ' has changed grammar to ' + data.grammar);
                 }
                 break;
-
 
             /* ===============================================================
             *
@@ -281,7 +265,43 @@ function judgeType(ws, msg, stream) {
                     return;
                 }
 
-            case Constant.TYPE_SAVE_FILE:
+            /* ===============================================================
+            *
+            *   Create file
+            *   - process after the user creating a new file -
+            *
+            *   Needed:
+            *   { path, data, isFolder }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_CREATE_FILE:
+                if (data.isFolder && !data.buffer) {
+                    fs.ensureDir(root + data.path, err => {
+                        console.log(err);
+                    });
+                } else if (!data.isFolder) {
+                    fs.outputFile(root + data.path,
+                        typeof data.buffer ? (data.buffer === "string" ? data.buffer : Buffer.from(data.buffer)) : "",
+                        {'flag': 'wx'}, err => {
+                            if (err && err.code !== 'EEXIST') console.log(err);
+                        });
+                }
+                data.userId = ws.userId;
+                break;
+
+            /* ===============================================================
+            *
+            *   Save file
+            *   - process after the user creating a new file -
+            *
+            *   Needed:
+            *   { path, data, isFolder }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_SAVE_FILE || Constant.TYPE_DELETE_FILE:
+                data.userId = ws.userId;
                 break;
         }
         // other meta changes: cursor position, text selection
@@ -299,7 +319,7 @@ function judgeType(ws, msg, stream) {
             console.log("Errors occur:" + err);
         }
     } else if (data.a === Constant.DEBUG) {
-        if (data.type === 'rc') {
+        if (data.type === 'rc') { // random color
             ws.send(createRandomColor());
         }
     } else {
@@ -311,7 +331,7 @@ function judgeType(ws, msg, stream) {
 
 function broadcastMsg(msg, ws, isToAll = false) {
     let sockets = portals[ws.portalId].users;
-    Object.keys(sockets).forEach((userId) => {
+    Object.keys(sockets).forEach(userId => {
         if (isToAll || userId !== ws.userId) {
             broadcastMsgToSpecificClient(msg, portals[ws.portalId].users[userId].ws);
         }
@@ -327,12 +347,11 @@ function broadcastMsgToSpecificClient(msg, socket) {
 
 function makeZipAndSend(ws, data) {
     let zip = new JSZip();
-    let root = Constant.DIR_PORTAL_ROOT + ws.portalId;
+    let root = Constant.DIR_PORTAL_ROOT + ws.portalId; // NOTICE: No slash in the end
     const paths = klawSync(root);
 
     paths.forEach(item =>
-        zip.file(item.path.replace(root, ""),
-            fs.readFileSync(item.path)));
+        zip.file(item.path.replace(root, ""), fs.readFileSync(item.path)));
 
     zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
         data.data = arr;

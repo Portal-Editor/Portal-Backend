@@ -9,6 +9,8 @@ let Constants = {
     TYPE_CLOSE_SOCKET: "userLeft",
     TYPE_CHANGE_ACTIVE_STATUS: "changeActiveStatus",
     TYPE_SAVE_FILE: "saveFile",
+    TYPE_CREATE_FILE: "createFile",
+    TYPE_DELETE_FILE: "deleteFile",
     TYPE_OCCUPIER_CLEARED: "occupierCleared",
     TYPE_USER_JOINED: "userJoined",
 

@@ -194,34 +194,20 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_OPEN_FILE:
-                let focus = portals[ws.portalId].users[ws.userId].focusOn;
-                if (focus) {
-                    let i = portals[ws.portalId].files[focus].activeUser.indexOf(ws.userId);
-                    portals[ws.portalId].files[focus].activeUser.splice(i, 1);
+                let shouldChoke = false;
+                fs.pathExists(root + data.path).then(exists => {
+                    if (!exists) {
+                        portals[ws.portalId].pendings[data.path] = {
+                            grammar: data.grammar
+                        };
+                        shouldChoke = true;
+                    }
+                });
+                if (shouldChoke) return;
+                else {
+                    updateFileStatus(data.path, data.grammar);
+                    break;
                 }
-                portals[ws.portalId].users[ws.userId].focusOn = data.path;
-
-                if (!files[data.path]) {
-                    files[data.path] = {
-                        path: data.path,
-                        grammar: data.grammar,
-                        occupier: [],
-                        activeUser: [],
-                        cursors: {}
-                    };
-                }
-
-                files[data.path].occupier.push(ws.userId);
-                files[data.path].activeUser.push(ws.userId);
-
-                files[data.path].cursors[ws.userId] = {
-                    row: 0,
-                    column: 0,
-                    color: users[ws.userId].color
-                };
-                console.log(data.path + ' added\n');
-                logFiles(files);
-                break;
 
             /* ===============================================================
             *
@@ -271,7 +257,7 @@ function judgeType(ws, msg, stream) {
             *   - process after the user creating a new file -
             *
             *   Needed:
-            *   { path, data, isFolder }
+            *   { path, data, isFolder, isOpen }
             *
             =============================================================== */
 
@@ -281,12 +267,31 @@ function judgeType(ws, msg, stream) {
                         console.log(err);
                     });
                 } else if (!data.isFolder) {
+                    if (data.isOpen && portals[ws.portalId].pendings[data.path]) {
+                        data.grammar = portals[ws.portalId].pendings[data.path].grammar;
+                        updateFileStatus(data.path, data.grammar);
+                        portals[ws.portalId].pendings[data.path] = null;
+                    }
                     fs.outputFile(root + data.path,
                         typeof data.buffer ? (data.buffer === "string" ? data.buffer : Buffer.from(data.buffer)) : "",
                         {'flag': 'wx'}, err => {
                             if (err && err.code !== 'EEXIST') console.log(err);
                         });
                 }
+                data.userId = ws.userId;
+                break;
+
+            /* ===============================================================
+            *
+            *   Delete file
+            *   - process after the user deleting the file -
+            *
+            *   Needed:
+            *   { path }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_DELETE_FILE:
                 data.userId = ws.userId;
                 break;
 
@@ -300,7 +305,7 @@ function judgeType(ws, msg, stream) {
             *
             =============================================================== */
 
-            case Constant.TYPE_SAVE_FILE || Constant.TYPE_DELETE_FILE:
+            case Constant.TYPE_SAVE_FILE:
                 data.userId = ws.userId;
                 break;
         }
@@ -343,6 +348,37 @@ function broadcastMsgToSpecificClient(msg, socket) {
         console.log('Broadcasting msg to ' + socket.userId + '\n' + msg + '\n');
         setTimeout(() => socket.send(msg), 0);
     }
+}
+
+function updateFileStatus(path, grammar) {
+    let files = portals[ws.portalId].files;
+    let focus = portals[ws.portalId].users[ws.userId].focusOn;
+    if (focus) {
+        let i = portals[ws.portalId].files[focus].activeUser.indexOf(ws.userId);
+        portals[ws.portalId].files[focus].activeUser.splice(i, 1);
+    }
+    portals[ws.portalId].users[ws.userId].focusOn = path;
+
+    if (!files[path]) {
+        files[path] = {
+            path: path,
+            grammar: grammar,
+            occupier: [],
+            activeUser: [],
+            cursors: {}
+        };
+    }
+
+    files[path].occupier.push(ws.userId);
+    files[path].activeUser.push(ws.userId);
+
+    files[path].cursors[ws.userId] = {
+        row: 0,
+        column: 0,
+        color: portals[ws.portalId].users[ws.userId].color
+    };
+    console.log(path + ' added\n');
+    logFiles(files);
 }
 
 function makeZipAndSend(ws, data) {
@@ -392,7 +428,8 @@ WebSocket.prototype.createOrJoinSession = function (data) {
         portals[this.portalId] = {
             id: this.portalId,
             files: {},
-            users: {}
+            users: {},
+            pendings: {}
         };
     } else {
         Object.keys(portals[this.portalId].users).forEach((userId) => {

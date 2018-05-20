@@ -27,6 +27,11 @@ let Constants = {
         eid: "0002",
         error: "FILE_IS_OCCUPIED",
         msg: "This file is used by multiple users."
+    },
+    ERROR_FOLDER_OCCUPIED: {
+        eid: "0003",
+        error: "FOLDER_IS_OCCUPIED",
+        msg: "This folder has files which are used by multiple users."
     }
 };
 

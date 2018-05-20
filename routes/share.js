@@ -195,14 +195,13 @@ function judgeType(ws, msg, stream) {
 
             case Constant.TYPE_OPEN_FILE:
                 let shouldChoke = false;
-                fs.pathExists(root + data.path).then(exists => {
-                    if (!exists) {
-                        portals[ws.portalId].pendings[data.path] = {
-                            grammar: data.grammar
-                        };
-                        shouldChoke = true;
-                    }
-                });
+
+                if (!fs.existsSync(root + data.path)) {
+                    portals[ws.portalId].pendings[data.path] = {
+                        grammar: data.grammar
+                    };
+                    shouldChoke = true;
+                }
                 if (shouldChoke) return;
                 else {
                     updateFileStatus(ws, data.path, data.grammar);
@@ -294,13 +293,39 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_DELETE_FILE:
-                if (file.occupier.length > 1 ||
-                    (file.occupier.length === 1 && file.occupier.indexOf(ws.userId) === -1)) {
-                    ws.send(JSON.stringify(Constant.ERROR_FILE_OCCUPIED));
+                let isAbleToDelete = (file) => !(file.occupier.length > 1 ||
+                    (file.occupier.length === 1 && file.occupier.indexOf(ws.userId) === -1));
+                if (data.isFolder) {
+                    let occupied = false;
+                    let paths = [];
+                    klawSync(root + data.path).every(item => {
+                        if (!isAbleToDelete(files[item.path.replace(root, "")])) {
+                            occupied = true;
+                            return false;
+                        } else {
+                            paths.push(item.path.replace(root, ""));
+                        }
+                    });
+                    if (!occupied) {
+                        // delete whole folder, remove files in logic
+                        fs.removeSync(root + data.path);
+                        paths.forEach(item => files[item] = null);
+                        console.log("Successfully removed directory " + data.path + ".");
+                    } else {
+                        ws.send(JSON.stringify(Constant.ERROR_FOLDER_OCCUPIED));
+                        console.log("Unable to remove directory " + data.path + ".");
+                        return;
+                    }
+                } else if (file && !isAbleToDelete(file)) {
+                    data.reject = Constant.ERROR_FILE_OCCUPIED;
+                    data.type = Constant.TYPE_CREATE_FILE;
+                    data.buffer = fs.readFileSync(root + data.path);
+                    ws.send(JSON.stringify(data));
                     return;
+                } else {
+                    if (file && file.occupier.length) file = null;
+                    fs.removeSync(root + data.path);
                 }
-                if (file.occupier.length) file = null;
-                fs.removeSync(root + data.path);
                 data.userId = ws.userId;
                 break;
 

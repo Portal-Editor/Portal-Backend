@@ -8,7 +8,7 @@ let Constants = {
     TYPE_CHANGE_GRAMMAR: "changeGrammar",
     TYPE_CLOSE_SOCKET: "userLeft",
     TYPE_CHANGE_ACTIVE_STATUS: "changeActiveStatus",
-    TYPE_SAVE_FILE: "saveFile",
+    TYPE_SAVE_FILE: "changeFile",
     TYPE_CREATE_FILE: "createFile",
     TYPE_DELETE_FILE: "deleteFile",
     TYPE_OCCUPIER_CLEARED: "occupierCleared",

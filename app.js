@@ -1,15 +1,15 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var stylus = require('stylus');
+let createError = require('http-errors');
+let express = require('express');
+let path = require('path');
+let cookieParser = require('cookie-parser');
+let logger = require('morgan');
+let stylus = require('stylus');
 
-var indexRouter = require('./routes/index');
-var authRouter = require('./routes/auth');
-var shareRouter = require('./routes/share');
+let indexRouter = require('./routes/index');
+let authRouter = require('./routes/auth');
+let shareRouter = require('./routes/share');
 
-var app = express();
+let app = express();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

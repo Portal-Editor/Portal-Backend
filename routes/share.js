@@ -62,7 +62,7 @@ let share = new ShareDB();
     });
 })();
 
-function logFiles(files) {
+const logFiles(files) {
     console.log(`INFO: Current files structure: ${files}\n`);
 }
 
@@ -82,7 +82,7 @@ function judgeType(ws, msg, stream) {
             /* ===============================================================
             *
             *   Init
-            *   Dealing when someone's creating or joining a portal project
+            *   - dealing when someone's creating or joining a portal project -
             *
             *   Needed:
             *   { userId, portalId, name }
@@ -152,7 +152,7 @@ function judgeType(ws, msg, stream) {
             *   - change status to record if user is focusing on the file -
             *
             *   Needed:
-            *   { path }
+            *   { @Nullable path }
             *
             =============================================================== */
 
@@ -344,15 +344,16 @@ function judgeType(ws, msg, stream) {
 
             /* ===============================================================
             *
-            *   Save file
-            *   - process after the user saving the file -
+            *   Change file
+            *   - process after the user changing the file in disc -
+            *   - NOTICE: changes in sharedb won't trigger this event. -
             *
             *   Needed:
             *   { path, buffer }
             *
             =============================================================== */
 
-            case Constant.TYPE_SAVE_FILE:
+            case Constant.TYPE_CHANGE_FILE:
                 fs.outputFile(root + data.path,
                     Buffer.from(data.buffer.data), err => {
                         if (err) console.log("ERROR: Errors occur on receiving file while saving - " + err);

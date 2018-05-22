@@ -74,10 +74,10 @@ function logFiles(files) {
 }
 
 function logTypeLogo(type) {
-    let l = type.length + 4;
-    console.log("".padEnd(l, '='));
-    console.log(`\n= ${type} =\n`);
-    console.log("\n".padStart(l, '='));
+    let l = type.length + 6;
+    console.log('\n' + "-".repeat(l));
+    console.log(`|  ${type}  |`);
+    console.log("-".repeat(l) + '\n');
 }
 
 function judgeType(ws, msg, stream) {

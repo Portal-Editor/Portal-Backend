@@ -73,16 +73,26 @@ function logFiles(files) {
     console.log(`INFO: Current files structure - ${files}\n`);
 }
 
+function logTypeLogo(type) {
+    let l = type.length + 4;
+    console.log("".padEnd(l, '='));
+    console.log(`\n= ${type} =\n`);
+    console.log("\n".padStart(l, '='));
+}
+
 function judgeType(ws, msg, stream) {
     let data = JSON.parse(msg);
     if (data.a === Constant.META) {
         console.log(`INFO: Received meta data. Type - ${data.type}.`);
         console.log(`INFO: Data - ${JSON.stringify(data)}\n`);
+
         let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
         let file = data.path ? files[data.path] : null;
         let root = Constant.DIR_PORTAL_ROOT + ws.portalId + '/';
         let willBroadcastToAll = false;
+
+        logTypeLogo(data.type);
 
         switch (data.type) {
 

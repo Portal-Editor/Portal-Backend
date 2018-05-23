@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "node ./routes/share.js"
+    "start": "node ./app.js"
   },
   "dependencies": {
     "cookie-parser": "~1.4.3",
@@ -17,13 +17,14 @@
     "klaw-sync": "^4.0.0",
     "morgan": "~1.9.0",
     "ot-text": "^1.0.1",
+    "request": "^2.86.0",
     "sharedb": "1.0.0-beta.7",
     "streamifier": "^0.1.1",
     "stylus": "0.54.5",
     "tinycolor2": "^1.4.1",
     "unzip": "^0.1.11",
+    "uuid": "^3.2.1",
     "websocket-push-stream": "^0.1.0",
-    "ws": "^2.2.2",
-    "yauzl": "2.9.1"
+    "ws": "^2.2.2"
   }
 }

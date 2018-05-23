@@ -394,17 +394,16 @@ function judgeType(ws, msg, stream) {
                     /* Go through it and check all files. If one of them is occupied, stop and log error. */
                     /* If not occupied, just delete the folder. */
 
-                    klawSync(root + data.path).every(item => {
+                    klawSync(root + data.path).forEach(item => {
 
                         /* NOTICE: 'item' is an absolute path. */
                         console.log(JSON.stringify(item));
                         console.log(JSON.stringify(portals[ws.portalId].files));
 
-                        if (isAbleToDelete(files[item.path.replace(path.resolve(root + data.path + '/'), "")]))
-                            paths.push(item.path.replace(path.resolve(root + data.path + '/'), ""));
+                        if (isAbleToDelete(files[item.path.replace(path.resolve(root), "")]))
+                            paths.push(item.path.replace(path.resolve(root), ""));
                         else {
                             isOccupied = true;
-                            return false;
                         }
                     });
                     if (isOccupied) {

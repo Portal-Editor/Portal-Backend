@@ -12,6 +12,7 @@ let streamifier = require('streamifier/lib');
 const fs = require('fs-extra');
 const klawSync = require('klaw-sync');
 const uuid = require('uuid/v1');
+const path = require('path');
 
 'use strict';
 
@@ -526,7 +527,7 @@ function makeZipAndSend(ws, data) {
         /* No need to take care of folders. */
 
         if (fs.lstatSync(item.path).isFile())
-            zip.file(item.path.replace(root, ""), fs.readFileSync(item.path));
+            zip.file(item.path.replace(path.resolve(root), ""), fs.readFileSync(item.path));
     });
     zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
         data.data = arr;

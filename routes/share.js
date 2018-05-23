@@ -397,6 +397,8 @@ function judgeType(ws, msg, stream) {
                     klawSync(root + data.path).every(item => {
 
                         /* NOTICE: 'item' is an absolute path. */
+                        console.log(JSON.stringify(item));
+                        console.log(JSON.stringify(portals[ws.portalId].files[data.path]));
 
                         if (isAbleToDelete(files[item.path.replace(path.resolve(root), "")]))
                             paths.push(item.path.replace(path.resolve(root), ""));

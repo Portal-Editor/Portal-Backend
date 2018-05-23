@@ -190,6 +190,13 @@ function judgeType(ws, msg, stream) {
             =============================================================== */
 
             case Constant.TYPE_CHANGE_ACTIVE_STATUS:
+                /* If the file doesn't exist yet but should be opened, jest add a flag to it in pending list.  */
+
+                if (!fs.existsSync(root + data.path) && portals[ws.portalId].pendings[data.path]) {
+                    portals[ws.portalId].pendings[data.path].shouldChangeActiveStatus = true;
+                    return;
+                }
+
                 changeActivationStatus(ws, users[ws.userId].focusOn, false);
                 if (data.path) changeActivationStatus(ws, data.path, true);
                 break;
@@ -327,6 +334,10 @@ function judgeType(ws, msg, stream) {
                         data.isOpen = true;
                         data.grammar = portals[ws.portalId].pendings[data.path].grammar;
                         openFile(ws, data.path, data.grammar);
+                        if (portals[ws.portalId].pendings[data.path].shouldChangeActiveStatus) {
+                            changeActivationStatus(ws, users[ws.userId].focusOn, false);
+                            if (data.path) changeActivationStatus(ws, data.path, true);
+                        }
                         portals[ws.portalId].pendings[data.path] = null;
                     }
 
@@ -387,8 +398,8 @@ function judgeType(ws, msg, stream) {
 
                         /* NOTICE: 'item' is an absolute path. */
 
-                        if (isAbleToDelete(files[item.path.replace(root, "")]))
-                            paths.push(item.path.replace(root, ""));
+                        if (isAbleToDelete(files[item.path.replace(path.resolve(root), "")]))
+                            paths.push(item.path.replace(path.resolve(root), ""));
                         else {
                             isOccupied = true;
                             return false;

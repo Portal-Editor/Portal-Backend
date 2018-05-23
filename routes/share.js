@@ -400,8 +400,8 @@ function judgeType(ws, msg, stream) {
                         console.log(JSON.stringify(item));
                         console.log(JSON.stringify(portals[ws.portalId].files));
 
-                        if (isAbleToDelete(files[item.path.replace(path.resolve(root + data.path), "")]))
-                            paths.push(item.path.replace(path.resolve(root + data.path), ""));
+                        if (isAbleToDelete(files[item.path.replace(path.resolve(root + data.path + '/'), "")]))
+                            paths.push(item.path.replace(path.resolve(root + data.path + '/'), ""));
                         else {
                             isOccupied = true;
                             return false;

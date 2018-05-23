@@ -399,10 +399,10 @@ function judgeType(ws, msg, stream) {
                         /* NOTICE: 'item' is an absolute path. */
                         console.log(path.resolve(root));
                         console.log(item.path);
-                        console.log(item.path.replace(path.resolve(root + '/'), ""));
+                        console.log(item.path.replace(path.resolve(root) + '/', ""));
 
-                        if (isAbleToDelete(files[item.path.replace(path.resolve(root + '/'), "")]))
-                            paths.push(item.path.replace(path.resolve(root + '/'), ""));
+                        if (isAbleToDelete(files[item.path.replace(path.resolve(root) + '/', "")]))
+                            paths.push(item.path.replace(path.resolve(root) + '/', ""));
                         else {
                             isOccupied = true;
                         }

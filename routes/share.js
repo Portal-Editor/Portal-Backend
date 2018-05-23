@@ -405,7 +405,7 @@ function judgeType(ws, msg, stream) {
 
                     /*If the user who want to delete the file is the only one occupies the file, it's necessary to remove logic file first. */
 
-                    if (file.occupier.length) file = null;
+                    if (file && file.occupier.length) file = null;
 
                     /* Remove real file. */
 

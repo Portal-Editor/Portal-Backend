@@ -2,14 +2,18 @@
 Backend part of Portal Editor.
 
 ## Development mode
-For we're using AP to locate specific files currently, if you want to do some testing things, it is strongly recommended to run this backend part on our remote server.
-
+It is recommended to run backend part on remote server.
 Please contact Donggu to get server info.
 
-Or, please create folder /root/kevinz and clone this backend into it. You also have to create a folder named 'portals' in folder 'kevinz'.
+If you want to test it locally:
+1. Please install git and just clone this backend:
+    ```bash
+    git clone https://github.com/Portal-Editor/Portal-Backend.git
+    cd Portal-Backend
+    ```
 
-- Ensure you've installed node, and your node version is over v6.4.0.
-- Step in /root/kevinz/Portal-Backend and run
+2. Ensure you've installed node, and your node version is over v6.4.0.
+3. Run
     ```bash
     npm install
     ```
@@ -17,7 +21,7 @@ Or, please create folder /root/kevinz and clone this backend into it. You also h
     ```bash
     npm start
     ```
-- After this the server will run. You can test it via atom or postman/websocketest, etc.
+4. After this the websocket server will run on port 9090. You can test it via atom or websocketest, etc.
 
 
 

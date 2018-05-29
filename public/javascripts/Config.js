@@ -11,7 +11,7 @@ let config = {
             zlibDeflateOptions: {
                 chunkSize: 1024,
                 memLevel: 7,
-                level: 3,
+                level: 3
             },
             zlibInflateOptions: {
                 chunkSize: 10 * 1024

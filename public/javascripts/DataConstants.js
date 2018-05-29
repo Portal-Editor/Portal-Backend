@@ -1,3 +1,5 @@
+const strings = require('node-strings');
+
 let Constants = {
     META: "meta",
     DEBUG: "DEBUG",
@@ -13,6 +15,9 @@ let Constants = {
     TYPE_DELETE_FILE: "deleteFile",
     TYPE_OCCUPIER_CLEARED: "occupierCleared",
     TYPE_USER_JOINED: "userJoined",
+
+    STRING_INFO: strings.green('[INFO] '),
+    STRING_ERROR: strings.red('[ERROR] '),
 
     DIR_PORTAL_ROOT: "./portals/",
 

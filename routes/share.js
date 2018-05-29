@@ -57,7 +57,7 @@ let share = new ShareDB();
             /* Remove left user from logic structure and broadcast to others. */
 
             if (portals[ws.portalId] && portals[ws.portalId].users[ws.userId]) {
-                portals[ws.portalId].users[ws.userId] = null;
+                delete portals[ws.portalId].users[ws.userId];
                 console.log(Constant.STRING_INFO + `User ${ws.userId} has left from ${ws.portalId}.`);
                 console.log(Constant.STRING_INFO + `Now ${ws.portalId} has ${portals[ws.portalId].users.length} connection(s).\n`);
                 let msg = {
@@ -501,7 +501,7 @@ function judgeType(ws, msg, stream) {
 function broadcastMsg(msg, ws, isToAll = false) {
     let sockets = portals[ws.portalId].users;
     Object.keys(sockets).forEach(userId => {
-        if (isToAll || userId !== ws.userId) {
+        if ((isToAll || userId !== ws.userId) && portals[ws.portalId].users[userId]) {
             broadcastMsgToSpecificClient(msg, portals[ws.portalId].users[userId].ws);
         }
     });

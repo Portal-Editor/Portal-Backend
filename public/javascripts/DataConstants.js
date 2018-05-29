@@ -52,7 +52,7 @@ let Constants = {
         a: "meta",
         eid: "0005",
         error: "INVALID_JOIN",
-        type: "joinFailed",
+        type: "initFailed", // don't change!
         msg: "This portal has not been created yet."
     }
 };

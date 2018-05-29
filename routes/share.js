@@ -128,8 +128,16 @@ function judgeType(ws, msg, stream) {
                 /* If return exception number, log and send it. */
 
                 if (isCreate === -1) {
-                    ws.send(Constant.ERROR_USERID_DUPLICATION);
+                    ws.send(JSON.stringify(Constant.ERROR_USERID_DUPLICATION));
                     console.log(Constant.STRING_ERROR + `Init failed, because user id ${ws.userId} is existed.\n`);
+                    return;
+                } else if (isCreate === -2) {
+                    ws.send(JSON.stringify(Constant.ERROR_INVALID_INIT));
+                    console.log(Constant.STRING_ERROR + `User ${ws.userId} sent an invalid init request. Ignored.`);
+                    return;
+                } else if (isCreate === -3) {
+                    ws.send(JSON.stringify(Constant.ERROR_INVALID_JOIN));
+                    console.log(Constant.STRING_ERROR + `User ${ws.userId} sent an invalid join request. Ignored.`);
                     return;
                 }
 
@@ -185,7 +193,7 @@ function judgeType(ws, msg, stream) {
                 file.occupier.forEach(userId => {
                     if (userId !== ws.userId) {
                         console.log(Constant.STRING_INFO + `Broadcasting cursor ${userId} successfully.\n`);
-                        broadcastMsgToSpecificClient(msg, ws, ws.userId);
+                        broadcastMsgToSpecificClient(msg, users[userId].ws);
                     }
                 });
 
@@ -609,17 +617,23 @@ function createRandomColor() {
 }
 
 WebSocket.prototype.createOrJoinSession = function (data) {
+    if (data.initNewPortal && data.portalId && portals[data.portalId]) return -2;
+    if (!data.initNewPortal && (!data.portalId || !portals[data.portalId])) return -3;
+
     let isCreate = false;
     this.portalId = data.portalId || uuid();
     this.userId = data.userId;
 
     /* Initialize a new portal if portal with specific id is not existed. */
 
-    if (typeof portals[this.portalId] !== 'undefined')
-        for (let userId in Object.keys(portals[this.portalId].users)) {
-            if (userId === this.userId) return -1;
+    if (!data.initNewPortal) {
+        let users = Object.keys(portals[this.portalId].users);
+        for (let i in users) {
+            if (users[i] === this.userId) return -1;
         }
-    else {
+    }
+
+    if (data.initNewPortal && !portals[this.portalId]) {
         portals[this.portalId] = {
             id: this.portalId,
             files: {},

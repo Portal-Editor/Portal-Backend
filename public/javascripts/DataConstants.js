@@ -24,19 +24,36 @@ let Constants = {
     GOLDEN_RATIO_CONJUGATE: 0.618033988749895,
 
     ERROR_USERID_DUPLICATION: {
+        a: "meta",
         eid: "0001",
         error: "USER_ID_DUPLICATION",
         msg: "There are several users with same userId."
     },
     ERROR_FILE_OCCUPIED: {
+        a: "meta",
         eid: "0002",
         error: "FILE_IS_OCCUPIED",
         msg: "This file is used by multiple users."
     },
     ERROR_FOLDER_OCCUPIED: {
+        a: "meta",
         eid: "0003",
         error: "FOLDER_IS_OCCUPIED",
         msg: "This folder has files which are used by multiple users."
+    },
+    ERROR_INVALID_INIT: {
+        a: "meta",
+        eid: "0004",
+        error: "INVALID_INIT",
+        type: "initFailed",
+        msg: "This portal name has already exist."
+    },
+    ERROR_INVALID_JOIN: {
+        a: "meta",
+        eid: "0005",
+        error: "INVALID_JOIN",
+        type: "joinFailed",
+        msg: "This portal has not been created yet."
     }
 };
 

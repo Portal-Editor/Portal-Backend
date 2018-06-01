@@ -156,7 +156,13 @@ function judgeType(ws, msg, stream) {
                 /* Collect data for sending message. */
 
                 data.users = tempUsers;
-                data.files = portals[ws.portalId].files;
+                data.files = {};
+                Object.values(portals[ws.portalId].files).forEach((value) => {
+                    data.files[value.path] = {
+                        activeUser: value.activeUser,
+                        isOccupied: value.occupier.length > 1 || value.occupier.length === 1 && value.occupier[0] !== ws.userId
+                    }
+                });
                 data.portalId = ws.portalId;
 
                 if (isCreate) {

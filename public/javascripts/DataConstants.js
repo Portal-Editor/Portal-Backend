@@ -27,6 +27,7 @@ let Constants = {
         a: "meta",
         eid: "0001",
         error: "USER_ID_DUPLICATION",
+        type: "initFailed",
         msg: "There are several users with same userId."
     },
     ERROR_FILE_OCCUPIED: {
@@ -52,7 +53,7 @@ let Constants = {
         a: "meta",
         eid: "0005",
         error: "INVALID_JOIN",
-        type: "initFailed", // don't change!
+        type: "initFailed",
         msg: "This portal has not been created yet."
     }
 };

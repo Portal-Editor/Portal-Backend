@@ -52,14 +52,14 @@ let share = new ShareDB();
 
             /* Socket client closed due to server closed, which shouldn't be broadcast. */
 
-            if (code === 1006) return;
+            // if (code === 1006) return;
 
             /* Remove left user from logic structure and broadcast to others. */
 
             if (portals[ws.portalId] && portals[ws.portalId].users[ws.userId]) {
-                delete portals[ws.portalId].users[ws.userId];
                 console.log(Constant.STRING_INFO + `User ${ws.userId} has left from ${ws.portalId}.`);
-                console.log(Constant.STRING_INFO + `Now ${ws.portalId} has ${portals[ws.portalId].users.length} connection(s).\n`);
+                console.log(Constant.STRING_INFO + `Now ${ws.portalId} has ${Object.keys(portals[ws.portalId].users).length} connection(s).\n`);
+                delete portals[ws.portalId].users[ws.userId];
                 let msg = {
                     a: Constant.META,
                     type: Constant.TYPE_CLOSE_SOCKET,
@@ -191,9 +191,9 @@ function judgeType(ws, msg, stream) {
 
                 data.userId = ws.userId;
                 file.occupier.forEach(userId => {
-                    if (userId !== ws.userId) {
+                    if (users[userId] && userId !== ws.userId) {
                         console.log(Constant.STRING_INFO + `Broadcasting cursor ${userId} successfully.\n`);
-                        broadcastMsgToSpecificClient(msg, users[userId].ws);
+                        broadcastMsgToSpecificClient(JSON.stringify(data), users[userId].ws);
                     }
                 });
 
@@ -216,9 +216,12 @@ function judgeType(ws, msg, stream) {
                     portals[ws.portalId].pendings[data.path].shouldChangeActiveStatus = true;
                     return;
                 }
+                data.userId = ws.userId;
+                data.oldPath = users[ws.userId].focusOn;
 
                 changeActivationStatus(ws, users[ws.userId].focusOn, false);
                 if (data.path) changeActivationStatus(ws, data.path, true);
+
                 break;
 
             /* ===============================================================
@@ -611,7 +614,7 @@ function changeActivationStatus(ws, path, isActive) {
 }
 
 function createRandomColor() {
-    let rand = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
+    let rand = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE + 0.5) % 1;
     let h = Math.floor(rand * 360);
     return tinycolor(`hsl(${h}, 50%, 60%)`).toHexString();
 }

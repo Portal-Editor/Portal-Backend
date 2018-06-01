@@ -309,6 +309,14 @@ function judgeType(ws, msg, stream) {
 
                 data.userId = ws.userId;
                 broadcastMsg(JSON.stringify(data), ws);
+                if (file.occupier.length === 1) {
+                    Object.keys(users).forEach(userId => {
+                        if (userId === file.occupier[0]) {
+                            data.type = Constant.TYPE_OCCUPIER_CLEARED;
+                            broadcastMsgToSpecificClient(JSON.stringify(data), users[file.occupier[0]].ws);
+                        }
+                    });
+                }
                 if (file.occupier.length) return;
 
                 /* Ready to broadcast OCCUPIER_CLEARED if occupier list is clear. */

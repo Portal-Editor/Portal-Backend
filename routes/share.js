@@ -454,7 +454,7 @@ function judgeType(ws, msg, stream) {
                     }
                 } else if (isAbleToDelete(file)) {
 
-                    /*If the user who want to delete the file is the only one occupies the file, it's necessary to remove logic file first. */
+                    /* If the user who want to delete the file is the only one occupies the file, it's necessary to remove logic file first. */
 
                     if (file && file.occupier.length) file = null;
 
@@ -655,7 +655,8 @@ WebSocket.prototype.createOrJoinSession = function (data) {
             id: this.portalId,
             files: {},
             users: {},
-            pendings: {}
+            pendings: {},
+            createdTime: new Date()
         };
         isCreate = true;
     }

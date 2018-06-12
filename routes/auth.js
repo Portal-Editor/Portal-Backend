@@ -45,7 +45,7 @@ router.get("/callback", (req, res) => {
         request(options, (__err, __res, __body) => {
             console.log(JSON.parse(__body));
             res.send(__body);
-        })
+        });
     });
 
 });

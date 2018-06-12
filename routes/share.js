@@ -1,22 +1,22 @@
-let express = require('express');
-let ShareDB = require('sharedb');
-let otText = require('ot-text');
-let WebSocket = require('ws');
-let WebSocketStream = require('../public/javascripts/WebSocketStream');
+let express = require("express");
+let ShareDB = require("sharedb");
+let otText = require("ot-text");
+let WebSocket = require("ws");
+let WebSocketStream = require("../public/javascripts/WebSocketStream");
 const Constant = require("../public/javascripts/DataConstants");
 const Config = require("../public/javascripts/Config");
 let tinycolor = require("tinycolor2");
 let unzip = require("unzip");
 let JSZip = require("jszip");
-let streamifier = require('streamifier/lib');
-const figlet = require('figlet');
-const fs = require('fs-extra');
-const klawSync = require('klaw-sync');
-const uuid = require('uuid/v1');
-const path = require('path');
-const strings = require('node-strings');
+let streamifier = require("streamifier/lib");
+const figlet = require("figlet");
+const fs = require("fs-extra");
+const klawSync = require("klaw-sync");
+const uuid = require("uuid/v1");
+const path = require("path");
+const strings = require("node-strings");
 
-'use strict';
+"use strict";
 
 ShareDB.types.register(otText.type);
 
@@ -38,17 +38,20 @@ let share = new ShareDB();
     /* Create a WebSocket Server and connect any incoming WebSocket connection to ShareDB. */
 
     const wss = new WebSocket.Server(Config.WebSocketServerConfigurations,
-        () => console.log('\n' + Constant.STRING_INFO + 'WebSocket Server is created.\n'));
+        () => console.log("\n" + Constant.STRING_INFO + "WebSocket Server is created.\n"));
 
-    wss.on('connection', ws => {
+    wss.on("connection", ws => {
         const stream = new WebSocketStream(ws);
 
-        ws.on('message', msg => {
-            // TODO: Try/catch
-            judgeType(ws, msg, stream);
+        ws.on("message", msg => {
+            try {
+                judgeType(ws, msg, stream);
+            } catch (err) {
+                console.log(Constant.STRING_ERROR + `Errors occur - ${err}`);
+            }
         });
 
-        ws.on('close', (code, reason) => {
+        ws.on("close", (code, reason) => {
 
             /* Socket client closed due to server closed, which shouldn't be broadcast. */
 
@@ -74,10 +77,10 @@ let share = new ShareDB();
         });
 
         share.listen(stream);
-        console.log(Constant.STRING_INFO + 'Got a new connection...\n');
+        console.log(Constant.STRING_INFO + "Got a new connection...\n");
     });
 
-    process.on('SIGINT', () => {
+    process.on("SIGINT", () => {
         wss.close(() => process.exit());
     });
 })();
@@ -87,10 +90,10 @@ function logFiles(files) {
 }
 
 function logTypeLogo(type) {
-    let l = type.length + 6;
-    console.log('\n' + "-".repeat(l));
+    let len = type.length + 6;
+    console.log("\n" + "-".repeat(len));
     console.log(`*  ${type}  *`);
-    console.log("-".repeat(l) + '\n');
+    console.log("-".repeat(len) + "\n");
 }
 
 function judgeType(ws, msg, stream) {
@@ -104,7 +107,7 @@ function judgeType(ws, msg, stream) {
         let users = portals[ws.portalId] ? portals[ws.portalId].users : null;
         let files = portals[ws.portalId] ? portals[ws.portalId].files : null;
         let file = data.path ? files[data.path] : null;
-        let root = Constant.DIR_PORTAL_ROOT + ws.portalId + '/';
+        let root = Constant.DIR_PORTAL_ROOT + ws.portalId + "/";
         let willBroadcastToAll = false;
 
         switch (data.type) {
@@ -119,7 +122,7 @@ function judgeType(ws, msg, stream) {
             *
             =============================================================== */
 
-            case Constant.TYPE_INIT:
+            case Constant.TYPE_INIT: {
 
                 /* Add user to portal. If no specific portal, create one. Return if a new portal is created. */
 
@@ -161,7 +164,7 @@ function judgeType(ws, msg, stream) {
                     data.files[value.path] = {
                         activeUser: value.activeUser,
                         isOccupied: value.occupier.length > 1 || value.occupier.length === 1 && value.occupier[0] !== ws.userId
-                    }
+                    };
                 });
                 data.portalId = ws.portalId;
 
@@ -174,6 +177,7 @@ function judgeType(ws, msg, stream) {
                 }
 
                 return;
+            }
 
             /* ===============================================================
             *
@@ -290,7 +294,7 @@ function judgeType(ws, msg, stream) {
             *
             =============================================================== */
 
-            case Constant.TYPE_CLOSE_FILE:
+            case Constant.TYPE_CLOSE_FILE: {
 
                 /* Edge detection */
 
@@ -333,7 +337,7 @@ function judgeType(ws, msg, stream) {
                 willBroadcastToAll = true;
                 console.log(Constant.STRING_ERROR + `File ${data.path} is removed from active files list.\n`);
                 break;
-
+            }
 
             /* ===============================================================
             *
@@ -353,7 +357,7 @@ function judgeType(ws, msg, stream) {
                     console.log(Constant.STRING_ERROR + "A create-folder requirement can not be passed with notnull buffer data.");
                     return;
                 } else if (!data.path) {
-                    console.log(Constant.STRING_ERROR + `A path of file is necessary but not received.\n`);
+                    console.log(Constant.STRING_ERROR + "A path of file is necessary but not received.\n");
                     return;
                 }
 
@@ -389,8 +393,8 @@ function judgeType(ws, msg, stream) {
 
                         /* No need to log exist error in CREATE_FILE type because this will only happen on chains of broadcasting. */
 
-                        {'flag': 'wx'}, err => {
-                            if (err && err.code !== 'EEXIST') console.log(err);
+                        {"flag": "wx"}, err => {
+                            if (err && err.code !== "EEXIST") console.log(err);
                         });
                 }
                 data.userId = ws.userId;
@@ -406,12 +410,12 @@ function judgeType(ws, msg, stream) {
             *
             =============================================================== */
 
-            case Constant.TYPE_DELETE_FILE:
+            case Constant.TYPE_DELETE_FILE: {
 
                 /* Edge detection */
 
                 if (!data.path) {
-                    console.log(Constant.STRING_ERROR + `A path of file is necessary but not received.\n`);
+                    console.log(Constant.STRING_ERROR + "A path of file is necessary but not received.\n");
                     return;
                 }
 
@@ -436,10 +440,10 @@ function judgeType(ws, msg, stream) {
                         /* NOTICE: 'item' is an absolute path. */
                         console.log(path.resolve(root));
                         console.log(item.path);
-                        console.log(item.path.replace(path.resolve(root) + '/', ""));
+                        console.log(item.path.replace(path.resolve(root) + "/", ""));
 
-                        if (isAbleToDelete(files[item.path.replace(path.resolve(root) + '/', "")]))
-                            paths.push(item.path.replace(path.resolve(root) + '/', ""));
+                        if (isAbleToDelete(files[item.path.replace(path.resolve(root) + "/", "")]))
+                            paths.push(item.path.replace(path.resolve(root) + "/", ""));
                         else {
                             isOccupied = true;
                         }
@@ -473,6 +477,7 @@ function judgeType(ws, msg, stream) {
                 }
                 data.userId = ws.userId;
                 break;
+            }
 
             /* ===============================================================
             *
@@ -498,7 +503,7 @@ function judgeType(ws, msg, stream) {
         }
         broadcastMsg(JSON.stringify(data), ws, willBroadcastToAll);
 
-    } else if (data.type === 'Buffer') {
+    } else if (data.type === "Buffer") {
 
         /* This is triggered only after a new portal is created. */
         /* The received data is to init workspace on server. */
@@ -579,7 +584,7 @@ function makeZipAndSend(ws, data) {
         if (fs.lstatSync(item.path).isFile())
             zip.file(item.path.replace(path.resolve(root), ""), fs.readFileSync(item.path));
     });
-    zip.generateAsync({type: 'array', streamFiles: false}).then((arr) => {
+    zip.generateAsync({type: "array", streamFiles: false}).then((arr) => {
         data.data = arr;
         ws.send(JSON.stringify(data));
     });
@@ -587,7 +592,7 @@ function makeZipAndSend(ws, data) {
 
 function saveFileToServer(portalId, data) {
     if (!portalId) {
-        console.log(Constant.STRING_ERROR + "Files can't be uploaded because no portal is created.");
+        console.log(Constant.STRING_ERROR + "Files cannot be uploaded because no portal is created.");
         return;
     }
     try {
@@ -627,8 +632,10 @@ function changeActivationStatus(ws, path, isActive) {
     }
 }
 
+let rand = Math.random();
+
 function createRandomColor() {
-    let rand = (Math.random() + Constant.GOLDEN_RATIO_CONJUGATE + 0.5) % 1;
+    rand = (rand + Constant.GOLDEN_RATIO_CONJUGATE) % 1;
     let h = Math.floor(rand * 360);
     return tinycolor(`hsl(${h}, 50%, 60%)`).toHexString();
 }
@@ -683,7 +690,7 @@ WebSocket.prototype.createOrJoinSession = function (data) {
 };
 
 WebSocket.prototype.getId = function () {
-    return this.upgradeReq.headers['sec-websocket-key'];
+    return this.upgradeReq.headers["sec-websocket-key"];
 };
 
 const router = express.Router();

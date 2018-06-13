@@ -87,7 +87,7 @@ let share = new ShareDB();
                     broadcastMsg(JSON.stringify(msg), ws);
                 }
             } catch (err) {
-                console.log("Failed when user left." + err)
+                console.log("Failed when user left. " + err)
             }
             ;
         });
@@ -488,6 +488,7 @@ function judgeType(ws, msg, stream) {
 
                     data.type = Constant.TYPE_CREATE_FILE;
                     data.reject = Constant.ERROR_FILE_OCCUPIED;
+                    data.isOpen = true;
                     data.buffer = fs.readFileSync(root + data.path);
                     ws.send(JSON.stringify(data));
                     return;

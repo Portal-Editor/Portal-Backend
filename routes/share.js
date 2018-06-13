@@ -82,6 +82,9 @@ let share = new ShareDB();
                             }), ws);
                             file.occupier.splice(file.occupier[0] === ws.userId ? 0 : 1, 1);
                         }
+                        if (file && file.activeUser.includes(ws.userId)) {
+                            file.activeUser.splice(file.activeUser.indexOf(ws.userId), 1);
+                        }
                     });
                     let msg = {
                         a: Constant.META,

@@ -58,11 +58,21 @@ let share = new ShareDB();
             // if (code === 1006) return;
 
             /* Remove left user from logic structure and broadcast to others. */
+            try {
 
             if (portals[ws.portalId] && portals[ws.portalId].users[ws.userId]) {
                 console.log(Constant.STRING_INFO + `User ${ws.userId} has left from ${ws.portalId}.`);
-                console.log(Constant.STRING_INFO + `Now ${ws.portalId} has ${Object.keys(portals[ws.portalId].users).length} connection(s).\n`);
+                console.log(Constant.STRING_INFO + `Now ${ws.portalId} has ${Object.keys(portals[ws.portalId].users).length - 1} connection(s).\n`);
                 delete portals[ws.portalId].users[ws.userId];
+                Object.values(portals[ws.portalId].files).forEach((file) => {
+                    if (file.occupier.length === 1 && ws.userId === file.occupier[0]) {
+                        data.type = Constant.TYPE_OCCUPIER_CLEARED;
+                        data.userId = ws.userId;
+                        data.path = file.path;
+                        broadcastMsg(JSON.stringify(data), ws);
+                        delete portals[ws.portalId].files[file.path];
+                    }
+                });
                 let msg = {
                     a: Constant.META,
                     type: Constant.TYPE_CLOSE_SOCKET,
@@ -73,7 +83,7 @@ let share = new ShareDB();
                     }
                 };
                 broadcastMsg(JSON.stringify(msg), ws);
-            }
+            }}catch(err) {console.log("Failed when user left." + err)};
         });
 
         share.listen(stream);
@@ -465,6 +475,7 @@ function judgeType(ws, msg, stream) {
                     /* Remove real file. */
 
                     fs.removeSync(root + data.path);
+                    ws.send(JSON.stringify({a: Constant.META, type: Constant.TYPE_FILE_DELETED, path: data.path}));
                 } else if (!isAbleToDelete(file)) {
 
                     /* If others occupy the file, it can't be removed. */

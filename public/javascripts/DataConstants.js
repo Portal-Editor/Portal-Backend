@@ -13,7 +13,9 @@ let Constants = {
     TYPE_CHANGE_FILE: "changeFile",
     TYPE_CREATE_FILE: "createFile",
     TYPE_DELETE_FILE: "deleteFile",
+    TYPE_DISPLAY_STRUCTURE: "displayPortalStructure",
     TYPE_OCCUPIER_CLEARED: "occupierCleared",
+    TYPE_FILE_DELETED: "fileDeleted",
     TYPE_USER_JOINED: "userJoined",
 
     STRING_INFO: strings.green('[INFO] '),

@@ -73,6 +73,14 @@ let share = new ShareDB();
                                 path: file.path
                             }), ws);
                             delete portals[ws.portalId].files[file.path];
+                        } else if (file.occupier.length === 2 && file.occupier.includes(ws.userId)) {
+                            broadcastMsg(JSON.stringify({
+                                a: Constant.META,
+                                type: Constant.TYPE_OCCUPIER_CLEARED,
+                                userId: ws.userId,
+                                path: file.path
+                            }), ws);
+                            file.occupier.splice(file.occupier[0] === ws.userId ? 0 : 1, 1);
                         }
                     });
                     let msg = {
@@ -89,7 +97,6 @@ let share = new ShareDB();
             } catch (err) {
                 console.log("Failed when user left. " + err)
             }
-            ;
         });
 
         share.listen(stream);

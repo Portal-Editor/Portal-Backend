@@ -144,7 +144,7 @@ function judgeType(ws, msg, stream) {
             *   - dealing when someone's creating or joining a portal project -
             *
             *   Needed:
-            *   { userId, portalId, name }
+            *   { userId, portalId, name, initNewPortal }
             *
             =============================================================== */
 
@@ -173,34 +173,32 @@ function judgeType(ws, msg, stream) {
                 /* Create a temp users list object. */
                 /* NOTICE: There's a property 'ws' in user, so it will throw error if pass portal.users as parameter directly. */
 
-                let tempUsers = {};
-                Object.keys(portals[ws.portalId].users).forEach(userId => {
-                    tempUsers[userId] = {
-                        id: userId,
-                        name: portals[ws.portalId].users[userId].name,
-                        color: portals[ws.portalId].users[userId].color
-                    };
-                });
-
-                /* Collect data for sending message. */
-
-                data.users = tempUsers;
-                data.files = {};
-                Object.values(portals[ws.portalId].files).forEach((value) => {
-                    data.files[value.path] = {
-                        activeUser: value.activeUser,
-                        isOccupied: value.occupier.length > 1 || value.occupier.length === 1 && value.occupier[0] !== ws.userId
-                    };
-                });
-                data.portalId = ws.portalId;
+                let structureData = getStructureData(data, ws);
 
                 if (isCreate) {
-                    ws.send(JSON.stringify(data));
+                    ws.send(JSON.stringify(structureData));
                     console.log(Constant.STRING_INFO + `User ${ws.userId} creates a new portal and joins it successfully.\n`);
                 } else {
-                    makeZipAndSend(ws, data);
+                    makeZipAndSend(ws, structureData);
                     console.log(Constant.STRING_INFO + `User ${ws.userId} joins in portal ${ws.portalId}.\n`);
                 }
+
+                return;
+            }
+
+            /* ===============================================================
+            *
+            *   Display Structure
+            *   - display the structure of a portal -
+            *
+            *   Needed:
+            *   { path, cursor: {row, column} }
+            *
+            =============================================================== */
+
+            case Constant.TYPE_DISPLAY_STRUCTURE: {
+
+                ws.send(JSON.stringify(getStructureData(data, ws)));
 
                 return;
             }
@@ -361,7 +359,7 @@ function judgeType(ws, msg, stream) {
                 data.type = Constant.TYPE_OCCUPIER_CLEARED;
                 logFiles(files);
                 willBroadcastToAll = true;
-                console.log(Constant.STRING_ERROR + `File ${data.path} is removed from active files list.\n`);
+                console.log(Constant.STRING_INFO + `File ${data.path} is removed from active files list.\n`);
                 break;
             }
 
@@ -658,6 +656,29 @@ function changeActivationStatus(ws, path, isActive) {
             console.log(Constant.STRING_INFO + `Occupier ${ws.userId} is not active on ${path} anymore.`);
         }
     }
+}
+
+function getStructureData(data, ws) {
+    let tempUsers = {};
+    Object.keys(portals[ws.portalId].users).forEach(userId => {
+        tempUsers[userId] = {
+            id: userId,
+            name: portals[ws.portalId].users[userId].name,
+            color: portals[ws.portalId].users[userId].color
+        };
+    });
+
+    data.users = tempUsers;
+    data.files = {};
+    Object.values(portals[ws.portalId].files).forEach((value) => {
+        data.files[value.path] = {
+            activeUser: value.activeUser,
+            isOccupied: value.occupier.length > 1 || value.occupier.length === 1 && value.occupier[0] !== ws.userId
+        };
+    });
+    data.portalId = ws.portalId;
+
+    return data;
 }
 
 let rand = Math.random();

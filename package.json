@@ -1,6 +1,6 @@
 {
   "name": "portalbackend",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "start": "node ./app.js"
@@ -24,7 +24,7 @@
     "streamifier": "^0.1.1",
     "stylus": "0.54.5",
     "tinycolor2": "^1.4.1",
-    "unzip": "^0.1.11",
+    "unzipper": "^0.9.7",
     "uuid": "^3.2.1",
     "websocket-push-stream": "^0.1.0",
     "ws": "^2.2.2"

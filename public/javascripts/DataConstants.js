@@ -18,8 +18,8 @@ let Constants = {
     TYPE_FILE_DELETED: "fileDeleted",
     TYPE_USER_JOINED: "userJoined",
 
-    STRING_INFO: strings.green('[INFO] '),
-    STRING_ERROR: strings.red('[ERROR] '),
+    INFO: strings.green('[INFO] '),
+    ERROR: strings.red('[ERROR] '),
 
     DIR_PORTAL_ROOT: "./portals/",
 
